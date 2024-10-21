@@ -1,3 +1,5 @@
+import ValuesLabels.TaskType;
+
 import java.io.Serializable;
 
 public class Task implements Serializable{
@@ -24,7 +26,3 @@ public class Task implements Serializable{
     }
 }
 
-enum TaskType{
-    A,
-    B
-}

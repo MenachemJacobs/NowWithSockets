@@ -1,18 +1,21 @@
+import ValuesLabels.PortNumbers;
+import ValuesLabels.TaskType;
+
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 
 public class SlaveSystem {
-    TaskType systemType;
-    int PortNumber;
+    private final TaskType systemType;
+    private final int PortNumber;
 
     public SlaveSystem (String[] args) throws Exception {
         if (args.length == 0) {
             throw new Exception("Must Pass A Valid Task Type (Either 'A' or 'B') to the created System");
         }
 
-        String passedType = args[0];
+        String passedType = args[0].toUpperCase();
 
         switch (passedType.toCharArray()[0]) {
             case 'A':
@@ -23,7 +26,7 @@ public class SlaveSystem {
                 systemType = TaskType.B;
                 PortNumber = PortNumbers.BSlavePort;
                 break;
-            default: throw new Exception("Must Pass A Valid Task Type (Either 'A' or 'B') to the created System");
+            default: throw new Exception("Invalid Task Type: Must be 'A' or 'B'.");
         }
     }
 
