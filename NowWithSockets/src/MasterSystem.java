@@ -1,21 +1,26 @@
 import ValuesLabels.PortNumbers;
 
 import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.LinkedList;
 import java.util.Queue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MasterSystem {
     static int portNumber = PortNumbers.MasterPort;
-    Queue<Task> finishedTasks = new LinkedList<>();
-    Queue<Task> toDispatchTasks = new LinkedList<>();
+    Queue<Task> finishedTasks = new LinkedBlockingQueue<>();
+    Queue<Task> toDispatchTasks = new LinkedBlockingQueue<>();
+    Queue<Task> ASlaveQ = new LinkedBlockingQueue<>();
+    Queue<Task> BSlaveQ = new LinkedBlockingQueue<>();
+
+    AtomicBoolean isDispatcherRunning = false;
 
     public static void main(String[] args) {
-        try{// Initialize the SlaveSystem with passed arguments (task type)
+        try{
             MasterSystem masterSystem = new MasterSystem();
 
-            // Start the server and listen for incoming tasks
             masterSystem.startServer();
         } catch(Exception e){ System.err.println("Error: " + e.getMessage()); }
     }
@@ -34,5 +39,12 @@ public class MasterSystem {
     }
 
     private void handleTask(Socket socket) {
+        try(ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream())){
+            Task task = (Task) objectInputStream.readObject();
+            toDispatchTasks.add(task);
+            System.out.println(task.toString());
+        } catch (IOException | ClassNotFoundException e){
+            System.err.println("Error reading task: " + e.getMessage());
+        }
     }
 }

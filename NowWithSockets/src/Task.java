@@ -24,5 +24,10 @@ public class Task implements Serializable{
             Thread.sleep(10 * 1000);
         } catch(InterruptedException ignored){}
     }
+
+    @Override
+    public String toString() {
+        return "ClientID: " + clientID + " TaskID: " + taskID + " TaskType: " + taskType;
+    }
 }
 
