@@ -13,20 +13,28 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MasterSystemServer {
     static int portNumber = PortNumbers.MasterServerPort;
-    Queue<Task> finishedTasks = new LinkedBlockingQueue<>();
-    Queue<Task> toDispatchTasks = new LinkedBlockingQueue<>();
 
+    ClientsNotifier Replier;
+    Queue<Task> finishedTasks = new LinkedBlockingQueue<>();
+    private final Object replyLock = new Object();
+    AtomicBoolean isReplierRunning = new AtomicBoolean(false);
+
+    TasksToSlavesBroadcaster Dispatcher;
+    Queue<Task> tasksToDispatch = new LinkedBlockingQueue<>();
+    private final Object dispatchLock = new Object();
     AtomicBoolean isDispatcherRunning = new AtomicBoolean(false);
 
-    public static void main(String[] args) {
-        try{
-            MasterSystemServer masterSystem = new MasterSystemServer();
-
-            masterSystem.startServer();
-        } catch(Exception e){ System.err.println("Error: " + e.getMessage()); }
+    MasterSystemServer() {
+        Replier = new ClientsNotifier(finishedTasks, replyLock, isReplierRunning);
+        Dispatcher = new TasksToSlavesBroadcaster(tasksToDispatch, dispatchLock, isDispatcherRunning);
     }
 
-    private void startServer() throws Exception {
+    public static void main(String[] args) {
+        MasterSystemServer masterSystem = new MasterSystemServer();
+        masterSystem.startServer();
+    }
+
+    private void startServer() {
         try(ServerSocket serverSocket = new ServerSocket(portNumber)) {
             System.out.println("System listening on port: " + portNumber);
 
@@ -36,13 +44,34 @@ public class MasterSystemServer {
 
                 handleTask(socket);
             }
-        }
+        } catch (IOException e) { System.err.println("Error reading task: " + e.getMessage()); }
     }
 
     private void handleTask(Socket socket) {
         try(ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream())){
             Task task = (Task) objectInputStream.readObject();
-            toDispatchTasks.add(task);
+
+            if(!task.isComplete) {
+                synchronized (dispatchLock) {
+                    tasksToDispatch.add(task);
+                }
+
+                if (!isDispatcherRunning.get()) {
+                    isDispatcherRunning.set(true);
+                    new Thread(Dispatcher).start();
+                }
+            }
+            else {
+                synchronized (replyLock) {
+                    finishedTasks.add(task);
+                }
+
+                if (!isReplierRunning.get()) {
+                    isReplierRunning.set(true);
+                    new Thread(Replier).start();
+                }
+            }
+
             System.out.println(task.toString());
         } catch (IOException | ClassNotFoundException e){
             System.err.println("Error reading task: " + e.getMessage());

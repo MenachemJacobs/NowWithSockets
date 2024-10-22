@@ -1,20 +1,24 @@
 package SlaveSystem;
 
+import Components.PortNumbers;
 import Components.Task;
 
-import java.util.concurrent.BlockingQueue;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
+import java.net.Socket;
+import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TaskProcessor implements Runnable {
-    BlockingQueue<Task> efficientStore;
-    BlockingQueue<Task> inEfficientStore;
+    Queue<Task> efficientStore;
+    Queue<Task> inEfficientStore;
     AtomicBoolean isRunning;
     private final Object efficientLock;
     private final Object inefficientLock;
 
     String name;
 
-    TaskProcessor(BlockingQueue<Task> efficientStore, BlockingQueue<Task> inEfficientStore, Object efficientLock,
+    TaskProcessor(Queue<Task> efficientStore, Queue<Task> inEfficientStore, Object efficientLock,
                   Object inefficientLock, AtomicBoolean isRunning, String name) {
         this.efficientStore = efficientStore;
         this.inEfficientStore = inEfficientStore;
@@ -56,8 +60,22 @@ public class TaskProcessor implements Runnable {
                     runAgain = true;
                 }
             }
+
+            if(task != null) notifyMaster(task);
         } while (runAgain);
 
         isRunning.set(false);
+    }
+
+    // TODO: WHy is everything always creating the socket? Make the socket in Constructor?
+    void notifyMaster(Task task) {
+        try(Socket socket = new Socket("localhost", PortNumbers.MasterServerPort);
+            ObjectOutputStream outStream = new ObjectOutputStream(socket.getOutputStream())) {
+
+            outStream.writeObject(task);
+            outStream.flush();
+        } catch (IOException e){
+            System.err.println("Failed to notify master server about task completion: " + e.getMessage());
+        }
     }
 }

@@ -10,14 +10,14 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
+import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class SlaveSystemServer {
     List<TaskProcessor> TaskProcessorPool = new ArrayList<>();
-    BlockingQueue<Task> ATaskQ = new LinkedBlockingQueue<>();
-    BlockingQueue<Task> BTaskQ = new LinkedBlockingQueue<>();
+    Queue<Task> ATaskQ = new LinkedBlockingQueue<>();
+    Queue<Task> BTaskQ = new LinkedBlockingQueue<>();
     private final Object AQueueLock = new Object();
     private final Object BQueueLock = new Object();
 

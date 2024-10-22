@@ -4,8 +4,9 @@ import java.io.Serializable;
 
 public class Task implements Serializable{
     public int taskID;
-    int clientID;
+    public int clientID;
     public TaskType taskType;
+    public boolean isComplete = false;
 
     Task(int taskNum, int clientNum, TaskType type){
         taskID = taskNum;
@@ -16,18 +17,20 @@ public class Task implements Serializable{
     public void efficientExecute() {
         try{
             Thread.sleep(2 * 1000);
+            isComplete = true;
         } catch(InterruptedException ignored){}
     }
 
     public void inefficientExecute() {
         try{
             Thread.sleep(10 * 1000);
+            isComplete = true;
         } catch(InterruptedException ignored){}
     }
 
     @Override
     public String toString() {
-        return "ClientID: " + clientID + " TaskID: " + taskID + " TaskType: " + taskType;
+        return "ClientID: " + clientID + " TaskID: " + taskID + " TaskType: " + taskType + "  isComplete: " + isComplete;
     }
 }
 
