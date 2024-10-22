@@ -1,4 +1,4 @@
-package ValuesLabels;
+package Components;
 
 public enum TaskType{
     A,

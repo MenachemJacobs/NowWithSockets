@@ -1,4 +1,5 @@
-import ValuesLabels.PortNumbers;
+import Components.PortNumbers;
+import Components.Task;
 
 import java.io.IOException;
 import java.io.ObjectOutputStream;
@@ -15,7 +16,7 @@ public class Client {
 
     void execute_tasks() {
         for (Task task : tasks) {
-            try (Socket socket = new Socket("localhost", PortNumbers.MasterPort);
+            try (Socket socket = new Socket("localhost", PortNumbers.MasterServerPort);
                  ObjectOutputStream outTask = new ObjectOutputStream(socket.getOutputStream())) {
 
                 outTask.writeObject(task);

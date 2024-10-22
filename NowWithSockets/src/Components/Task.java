@@ -1,11 +1,11 @@
-import ValuesLabels.TaskType;
+package Components;
 
 import java.io.Serializable;
 
 public class Task implements Serializable{
-    int taskID;
+    public int taskID;
     int clientID;
-    TaskType taskType;
+    public TaskType taskType;
 
     Task(int taskNum, int clientNum, TaskType type){
         taskID = taskNum;
@@ -13,13 +13,13 @@ public class Task implements Serializable{
         taskType = type;
     }
 
-    void efficientExecute() {
+    public void efficientExecute() {
         try{
             Thread.sleep(2 * 1000);
         } catch(InterruptedException ignored){}
     }
 
-    void inefficientExecute() {
+    public void inefficientExecute() {
         try{
             Thread.sleep(10 * 1000);
         } catch(InterruptedException ignored){}

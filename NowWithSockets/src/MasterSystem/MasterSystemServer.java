@@ -1,4 +1,7 @@
-import ValuesLabels.PortNumbers;
+package MasterSystem;
+
+import Components.PortNumbers;
+import Components.Task;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -8,18 +11,16 @@ import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class MasterSystem {
-    static int portNumber = PortNumbers.MasterPort;
+public class MasterSystemServer {
+    static int portNumber = PortNumbers.MasterServerPort;
     Queue<Task> finishedTasks = new LinkedBlockingQueue<>();
     Queue<Task> toDispatchTasks = new LinkedBlockingQueue<>();
-    Queue<Task> ASlaveQ = new LinkedBlockingQueue<>();
-    Queue<Task> BSlaveQ = new LinkedBlockingQueue<>();
 
-    AtomicBoolean isDispatcherRunning = false;
+    AtomicBoolean isDispatcherRunning = new AtomicBoolean(false);
 
     public static void main(String[] args) {
         try{
-            MasterSystem masterSystem = new MasterSystem();
+            MasterSystemServer masterSystem = new MasterSystemServer();
 
             masterSystem.startServer();
         } catch(Exception e){ System.err.println("Error: " + e.getMessage()); }
