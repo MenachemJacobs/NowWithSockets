@@ -77,6 +77,7 @@ public class MasterSystemServer {
         if (!isDispatcherRunning.get()) {
             isDispatcherRunning.set(true);
             executorService.submit(Dispatcher);
+            System.out.println("Woke up the system Dispatcher");
         }
     }
 
@@ -86,6 +87,7 @@ public class MasterSystemServer {
         if (!isReplierRunning.get()) {
             isReplierRunning.set(true);
             executorService.submit(Replier);
+            System.out.println("Woke up the system replier");
         }
     }
 }

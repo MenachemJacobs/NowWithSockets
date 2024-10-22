@@ -49,6 +49,7 @@ public class ClientsNotifier implements Runnable {
         try (ObjectOutputStream outStream = new ObjectOutputStream(client.getOutputStream())) {
             outStream.writeObject(completedTask);
             outStream.flush();
+            System.out.println("Sent task back to client: " + completedTask.clientID);
         } catch (IOException e) {
             System.err.println("Error notifying client for task ID " + completedTask.taskID + ": " + e.getMessage());
         }

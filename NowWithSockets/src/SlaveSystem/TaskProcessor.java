@@ -13,71 +13,67 @@ public class TaskProcessor implements Runnable {
     Queue<Task> efficientStore;
     Queue<Task> inEfficientStore;
     AtomicBoolean isRunning;
-    private final Object efficientLock;
-    private final Object inefficientLock;
 
     String name;
+    Socket socket;
 
-    TaskProcessor(Queue<Task> efficientStore, Queue<Task> inEfficientStore, Object efficientLock,
-                  Object inefficientLock, AtomicBoolean isRunning, String name) {
+    TaskProcessor(Queue<Task> efficientStore, Queue<Task> inEfficientStore, AtomicBoolean isRunning, String name) {
         this.efficientStore = efficientStore;
         this.inEfficientStore = inEfficientStore;
         this.isRunning = isRunning;
-        this.efficientLock = efficientLock;
-        this.inefficientLock = inefficientLock;
-
         this.name = name;
+
+        try {
+            socket = new Socket("localhost", PortNumbers.MasterServerPort);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public void run() {
         Task task;
-        boolean runAgain;
 
-        do {
-            task = null;
-            runAgain = false;
+        while (isRunning.get()) {
+            task = efficientStore.poll();
 
-            if (!efficientStore.isEmpty()) {
-               synchronized (efficientLock) {
-                   task = efficientStore.poll();
-               }
-               efficientLock.notifyAll();
-
-                if(task != null) {
-                    task.efficientExecute();
-                    System.out.println(name + "Executed task " + task.taskID + " efficiently");
-                    runAgain = true;
-                }
+            if (task != null) {
+                task.efficientExecute();
+                System.out.println(name + "Executed task " + task.taskID + " efficiently");
+                notifyMaster(task);
+                continue;
             }
 
-            if (task == null && !inEfficientStore.isEmpty()) {
-                synchronized (inefficientLock) {
-                    task = inEfficientStore.poll();
-                }
-                inefficientLock.notifyAll();
-
-                if(task != null) {
-                    task.inefficientExecute();
-                    System.out.println(name + "Executed task " + task.taskID + " inefficiently");
-                    runAgain = true;
-                }
+            task = inEfficientStore.poll();
+            if (task != null) {
+                task.inefficientExecute();
+                System.out.println(name + "Executed task " + task.taskID + " inefficiently");
+                notifyMaster(task);
             }
+        }
 
-            if(task != null) notifyMaster(task);
-        } while (runAgain);
-
+        // Ensure proper cleanup when the thread finishes
+        cleanup();
+        //TODO figure out a thread safe way to update status
         isRunning.set(false);
     }
 
-    // TODO: WHy is everything always creating the socket? Make the socket in Constructor?
     void notifyMaster(Task task) {
-        try(Socket socket = new Socket("localhost", PortNumbers.MasterServerPort);
-            ObjectOutputStream outStream = new ObjectOutputStream(socket.getOutputStream())) {
+        try (ObjectOutputStream outStream = new ObjectOutputStream(socket.getOutputStream())) {
 
             outStream.writeObject(task);
             outStream.flush();
-        } catch (IOException e){
+        } catch (IOException e) {
             System.err.println("Failed to notify master server about task completion: " + e.getMessage());
+        }
+    }
+
+    void cleanup() {
+        try{
+            if(socket != null && !socket.isClosed()) {
+                socket.close();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 }

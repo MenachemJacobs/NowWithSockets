@@ -8,7 +8,7 @@ public class Task implements Serializable{
     public TaskType taskType;
     public boolean isComplete = false;
 
-    Task(int taskNum, int clientNum, TaskType type){
+    public Task(int taskNum, int clientNum, TaskType type){
         taskID = taskNum;
         clientID = clientNum;
         taskType = type;

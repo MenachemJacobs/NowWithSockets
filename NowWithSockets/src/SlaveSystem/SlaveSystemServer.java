@@ -16,22 +16,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class SlaveSystemServer {
     List<TaskProcessor> TaskProcessorPool = new ArrayList<>();
-    Queue<Task> ATaskQ = new LinkedBlockingQueue<>();
-    Queue<Task> BTaskQ = new LinkedBlockingQueue<>();
-    private final Object AQueueLock = new Object();
-    private final Object BQueueLock = new Object();
+    public Queue<Task> ATaskQ = new LinkedBlockingQueue<>();
+    public Queue<Task> BTaskQ = new LinkedBlockingQueue<>();
 
-    SlaveSystemServer(){
-        TaskProcessorPool.add(new TaskProcessor(ATaskQ, BTaskQ, AQueueLock, BQueueLock, new AtomicBoolean(false), "A-Slave"));
-        TaskProcessorPool.add(new TaskProcessor(BTaskQ, ATaskQ, BQueueLock, AQueueLock, new AtomicBoolean(false), "B-Slave"));
+    public SlaveSystemServer() {
+        TaskProcessorPool.add(new TaskProcessor(ATaskQ, BTaskQ, new AtomicBoolean(false), "A-Slave"));
+        TaskProcessorPool.add(new TaskProcessor(BTaskQ, ATaskQ, new AtomicBoolean(false), "B-Slave"));
     }
 
     public void startServer() throws IOException, ClassNotFoundException {
         int portNumber = PortNumbers.SlaveServerPort;
-        try(ServerSocket serverSocket = new ServerSocket(portNumber)) {
+        try (ServerSocket serverSocket = new ServerSocket(portNumber)) {
             System.out.println("System listening on port: " + portNumber);
 
-            while(true){
+            while (true) {
                 Socket socket = serverSocket.accept();
                 System.out.println("System accepted");
 
@@ -45,23 +43,17 @@ public class SlaveSystemServer {
             Task task = (Task) objectInputStream.readObject();
             System.out.println("Received Components.Task of type: " + task.taskType);
 
-            if(task.taskType == TaskType.A) {
-                synchronized (AQueueLock) {
-                    ATaskQ.add(task);
-                }
-                AQueueLock.notifyAll();
-            }
-            else if(task.taskType == TaskType.B) {
-                synchronized (BQueueLock) {
-                    BTaskQ.add(task);
-                }
-                BQueueLock.notifyAll();
-            }
+            if (task.taskType == TaskType.A)
+                ATaskQ.add(task);
+
+            else if (task.taskType == TaskType.B)
+                BTaskQ.add(task);
+
             else
                 throw new IllegalArgumentException("New task type has been added without updating the slave server");
 
-            for(TaskProcessor processor : TaskProcessorPool){
-                if(!processor.isRunning.get()) {
+            for (TaskProcessor processor : TaskProcessorPool) {
+                if (!processor.isRunning.get()) {
                     processor.isRunning.set(true);
                     new Thread(processor).start();
                 }
@@ -71,7 +63,7 @@ public class SlaveSystemServer {
         }
     }
 
-    public static void main(String[] args){
+    public static void main(String[] args) {
         try {
             // Initialize the SlaveSystem.SlaveSystem with passed arguments (task type)
             SlaveSystemServer slaveSystem = new SlaveSystemServer();
