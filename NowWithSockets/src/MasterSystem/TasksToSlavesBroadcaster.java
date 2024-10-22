@@ -14,41 +14,29 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class TasksToSlavesBroadcaster implements Runnable {
     Queue<TaskSocketPair> TasksSocketsToAssign;
     AtomicBoolean amRunning;
-    private final Object dispatchLock;
     Map<Task, Socket> clientMap;
-    private final Object clientLock;
 
-    TasksToSlavesBroadcaster(Queue<TaskSocketPair> UnnasignedTaskQueue, Object QueueLock, AtomicBoolean isRunning,
-                             Map<Task, Socket> clientMap, Object clientLock) {
+    TasksToSlavesBroadcaster(Queue<TaskSocketPair> UnnasignedTaskQueue, AtomicBoolean isRunning,
+                             Map<Task, Socket> clientMap) {
         TasksSocketsToAssign = UnnasignedTaskQueue;
-        dispatchLock = QueueLock;
         amRunning = isRunning;
         this.clientMap = clientMap;
-        this.clientLock = clientLock;
     }
 
     // TODO I must remember to make sure that when the server wakes up the thread it sets the status to running
     public void run() {
         TaskSocketPair taskSocket;
-        Task task = null;
-        Socket socket = null;
+        Task task;
+        Socket socket;
 
-        while (!TasksSocketsToAssign.isEmpty()) {
-            synchronized (dispatchLock) {
-                taskSocket = TasksSocketsToAssign.poll();
-            }
-            dispatchLock.notifyAll();
+        while ((taskSocket = TasksSocketsToAssign.poll()) != null) {
 
-            if (taskSocket != null) {
-                task = taskSocket.task();
-                socket = taskSocket.socket();
-            }
+            task = taskSocket.task();
+            socket = taskSocket.socket();
+
 
             if(task != null && socket != null) {
-                synchronized (clientLock) {
-                    clientMap.put(task, socket);
-                }
-                clientLock.notifyAll();
+                clientMap.put(task, socket);
                 sendTaskToSlave(task);
             }
         }

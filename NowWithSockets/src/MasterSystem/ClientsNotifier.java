@@ -2,6 +2,8 @@ package MasterSystem;
 
 import Components.Task;
 
+import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.Map;
 import java.util.Queue;
@@ -10,46 +12,45 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class ClientsNotifier implements Runnable {
     Queue<Task> TasksToNotify;
     AtomicBoolean amRunning;
-    private final Object completedLock;
     Map<Task, Socket> clientMap;
-    final Object clientLock;
 
-    ClientsNotifier(Queue<Task> CompletedTaskQueue, Object QueueLock, AtomicBoolean isRunning,
-                    Map<Task, Socket> clientMap, Object clientLock){
+    ClientsNotifier(Queue<Task> CompletedTaskQueue, AtomicBoolean isRunning,
+                    Map<Task, Socket> clientMap){
         TasksToNotify = CompletedTaskQueue;
-        completedLock = QueueLock;
         amRunning = isRunning;
         this.clientMap = clientMap;
-        this.clientLock = clientLock;
     }
 
     public void run() {
-        while (!TasksToNotify.isEmpty()) {
-            Socket client = null;
-            Task completedTask;
+        while (true) {
+            Task completedTask = TasksToNotify.poll();
 
-            synchronized (completedLock) {
-                completedTask = TasksToNotify.poll();
-            }
-            TasksToNotify.notifyAll();
-
-            if (completedTask != null) {
-                synchronized (clientLock) {
-                    client = clientMap.get(completedTask);
-                    clientMap.remove(completedTask);
-                }
-                clientLock.notifyAll();
+            if (completedTask == null) {
+                amRunning.set(false);
+                break;
             }
 
-            if(client != null){
-                notifyClient(client, completedTask);
+            Socket clientSocket = clientMap.get(completedTask);
+
+            if(clientSocket != null){
+                notifyClient(clientSocket, completedTask);
                 System.out.println("Task ID " + completedTask.taskID + " client ID " + completedTask.clientID);
+
+                try{
+                    clientSocket.close();
+                } catch (IOException e) {
+                    System.err.println("Error closing client socket: " + e.getMessage());
+                }
             }
         }
-        amRunning.set(false);
     }
 
     void notifyClient(Socket client, Task completedTask){
-        // Send the completed task to the client and close the socket
+        try (ObjectOutputStream outStream = new ObjectOutputStream(client.getOutputStream())) {
+            outStream.writeObject(completedTask);
+            outStream.flush();
+        } catch (IOException e) {
+            System.err.println("Error notifying client for task ID " + completedTask.taskID + ": " + e.getMessage());
+        }
     }
 }

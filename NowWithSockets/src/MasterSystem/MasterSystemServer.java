@@ -21,20 +21,18 @@ public class MasterSystemServer {
 
     ClientsNotifier Replier;
     Queue<Task> finishedTasks = new LinkedBlockingQueue<>();
-    private final Object replyLock = new Object();
     AtomicBoolean isReplierRunning = new AtomicBoolean(false);
 
     TasksToSlavesBroadcaster Dispatcher;
     Queue<TaskSocketPair> tasksToDispatch = new LinkedBlockingQueue<>();
-    private final Object dispatchLock = new Object();
     AtomicBoolean isDispatcherRunning = new AtomicBoolean(false);
 
     MasterSystemServer() {
         clientMap = new ConcurrentHashMap<>();
 
         Object clientLock = new Object();
-        Replier = new ClientsNotifier(finishedTasks, replyLock, isReplierRunning, clientMap, clientLock);
-        Dispatcher = new TasksToSlavesBroadcaster(tasksToDispatch, dispatchLock, isDispatcherRunning, clientMap, clientLock);
+        Replier = new ClientsNotifier(finishedTasks, isReplierRunning, clientMap);
+        Dispatcher = new TasksToSlavesBroadcaster(tasksToDispatch, isDispatcherRunning, clientMap);
     }
 
     public static void main(String[] args) {
@@ -74,9 +72,7 @@ public class MasterSystemServer {
 
     void handleIncompleteTask(Task task, Socket socket){
         TaskSocketPair toDispatch = new TaskSocketPair(task, socket);
-        synchronized (dispatchLock) {
-            tasksToDispatch.add(toDispatch);
-        }
+        tasksToDispatch.add(toDispatch);
 
         if (!isDispatcherRunning.get()) {
             isDispatcherRunning.set(true);
@@ -88,9 +84,7 @@ public class MasterSystemServer {
     }
 
     void handleCompleteTask(Task task){
-        synchronized (replyLock) {
-            finishedTasks.add(task);
-        }
+        finishedTasks.add(task);
 
         if (!isReplierRunning.get()) {
             isReplierRunning.set(true);
