@@ -10,8 +10,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Map;
 import java.util.Queue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MasterSystemServer {
@@ -27,10 +26,12 @@ public class MasterSystemServer {
     Queue<TaskSocketPair> tasksToDispatch = new LinkedBlockingQueue<>();
     AtomicBoolean isDispatcherRunning = new AtomicBoolean(false);
 
+    private ExecutorService executorService;
+
     MasterSystemServer() {
         clientMap = new ConcurrentHashMap<>();
+        executorService = Executors.newFixedThreadPool(3);
 
-        Object clientLock = new Object();
         Replier = new ClientsNotifier(finishedTasks, isReplierRunning, clientMap);
         Dispatcher = new TasksToSlavesBroadcaster(tasksToDispatch, isDispatcherRunning, clientMap);
     }
@@ -71,16 +72,12 @@ public class MasterSystemServer {
     }
 
     void handleIncompleteTask(Task task, Socket socket){
-        TaskSocketPair toDispatch = new TaskSocketPair(task, socket);
-        tasksToDispatch.add(toDispatch);
+        tasksToDispatch.add(new TaskSocketPair(task, socket));
 
         if (!isDispatcherRunning.get()) {
             isDispatcherRunning.set(true);
-            new Thread(Dispatcher).start();
+            executorService.submit(Dispatcher);
         }
-
-        if(!isReplierRunning.get())
-            new Thread(Replier).start();
     }
 
     void handleCompleteTask(Task task){
@@ -88,10 +85,7 @@ public class MasterSystemServer {
 
         if (!isReplierRunning.get()) {
             isReplierRunning.set(true);
-            new Thread(Replier).start();
+            executorService.submit(Replier);
         }
-
-        if(!isDispatcherRunning.get())
-            new Thread(Dispatcher).start();
     }
 }
