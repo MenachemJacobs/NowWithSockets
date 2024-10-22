@@ -2,34 +2,53 @@ package MasterSystem;
 
 import Components.PortNumbers;
 import Components.Task;
+import Components.TaskSocketPair;
 
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TasksToSlavesBroadcaster implements Runnable {
-    Queue<Task> TasksToAssign;
+    Queue<TaskSocketPair> TasksSocketsToAssign;
     AtomicBoolean amRunning;
-    private final Object lock;
+    private final Object dispatchLock;
+    Map<Task, Socket> clientMap;
+    private final Object clientLock;
 
-    TasksToSlavesBroadcaster(Queue<Task> UnnasignedTaskQueue, Object QueueLock, AtomicBoolean isRunning) {
-        TasksToAssign = UnnasignedTaskQueue;
-        lock = QueueLock;
+    TasksToSlavesBroadcaster(Queue<TaskSocketPair> UnnasignedTaskQueue, Object QueueLock, AtomicBoolean isRunning,
+                             Map<Task, Socket> clientMap, Object clientLock) {
+        TasksSocketsToAssign = UnnasignedTaskQueue;
+        dispatchLock = QueueLock;
         amRunning = isRunning;
+        this.clientMap = clientMap;
+        this.clientLock = clientLock;
     }
 
     // TODO I must remember to make sure that when the server wakes up the thread it sets the status to running
     public void run() {
-        Task task;
+        TaskSocketPair taskSocket;
+        Task task = null;
+        Socket socket = null;
 
-        while (!TasksToAssign.isEmpty()) {
-            synchronized (lock) {
-                task = TasksToAssign.poll();
+        while (!TasksSocketsToAssign.isEmpty()) {
+            synchronized (dispatchLock) {
+                taskSocket = TasksSocketsToAssign.poll();
+            }
+            dispatchLock.notifyAll();
+
+            if (taskSocket != null) {
+                task = taskSocket.task();
+                socket = taskSocket.socket();
             }
 
-            if (task != null) {
+            if(task != null && socket != null) {
+                synchronized (clientLock) {
+                    clientMap.put(task, socket);
+                }
+                clientLock.notifyAll();
                 sendTaskToSlave(task);
             }
         }

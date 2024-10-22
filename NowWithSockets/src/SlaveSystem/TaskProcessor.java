@@ -41,6 +41,7 @@ public class TaskProcessor implements Runnable {
                synchronized (efficientLock) {
                    task = efficientStore.poll();
                }
+               efficientLock.notifyAll();
 
                 if(task != null) {
                     task.efficientExecute();
@@ -53,6 +54,7 @@ public class TaskProcessor implements Runnable {
                 synchronized (inefficientLock) {
                     task = inEfficientStore.poll();
                 }
+                inefficientLock.notifyAll();
 
                 if(task != null) {
                     task.inefficientExecute();

@@ -45,15 +45,18 @@ public class SlaveSystemServer {
             Task task = (Task) objectInputStream.readObject();
             System.out.println("Received Components.Task of type: " + task.taskType);
 
-            if(task.taskType == TaskType.A)
+            if(task.taskType == TaskType.A) {
                 synchronized (AQueueLock) {
                     ATaskQ.add(task);
                 }
-            else if(task.taskType == TaskType.B)
+                AQueueLock.notifyAll();
+            }
+            else if(task.taskType == TaskType.B) {
                 synchronized (BQueueLock) {
                     BTaskQ.add(task);
                 }
-
+                BQueueLock.notifyAll();
+            }
             else
                 throw new IllegalArgumentException("New task type has been added without updating the slave server");
 
