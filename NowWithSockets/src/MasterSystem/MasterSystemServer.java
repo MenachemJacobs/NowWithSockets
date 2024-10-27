@@ -15,13 +15,16 @@ import java.util.concurrent.*;
 public class MasterSystemServer {
     static int portNumber = PortNumbers.MasterServerPort;
     Map<Task, Socket> clientMap = new ConcurrentHashMap<>();
+    ExecutorService executorService = Executors.newFixedThreadPool(2);
 
-    Thread ReplyThread;
-    Runnable Replier;
+    // Futures to track the running tasks
+    Future<?> replyTaskFuture = null;
+    Future<?> dispatchTaskFuture = null;
+
+    ClientsNotifier Replier;
     Queue<Task> finishedTasks = new ConcurrentLinkedQueue<>();
 
-    Thread  DispatchThread;
-    Runnable Dispatcher;
+    TasksToSlavesBroadcaster Dispatcher;
     Queue<TaskSocketPair> tasksToDispatch = new ConcurrentLinkedQueue<>();
 
     MasterSystemServer() {
@@ -42,46 +45,60 @@ public class MasterSystemServer {
                 Socket socket = serverSocket.accept();
                 System.out.println("System accepted");
 
-                handleTask(socket);
+                // Read the object directly in the startServer method
+                Object obj;
+                try (ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream())) {
+                    obj = objectInputStream.readObject();
+                    System.out.println("Object received");
+                } catch (IOException | ClassNotFoundException e) {
+                    System.err.println("Error reading task: " + e.getMessage());
+                    continue; // Go to the next iteration if there is an error
+                }
+
+                // Check if the object is an instance of Task
+                if (obj instanceof Task task) { // Using instanceof with pattern matching (Java 16+)
+                    handleTask(socket, task);
+                } else if (obj != null) {
+                    // Log if obj is not a Task
+                    System.out.println("Received an object that is not a Task. Ignoring it.");
+                } else {
+                    System.out.println("No object received, nothing to process.");
+                }
             }
         } catch (IOException e) {
             System.err.println("Error reading task: " + e.getMessage());
         }
     }
 
-    void handleTask(Socket socket) {
-        try (ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream())) {
-            Task task = (Task) objectInputStream.readObject();
+    void handleTask(Socket socket, Task task) {
+        System.out.println("Task Identified: " + task);
 
+        executorService.submit(() -> {
             if (!task.isComplete) {
+                System.out.println("Task incomplete");
                 handleIncompleteTask(task, socket);
             } else {
+                System.out.println("Task complete");
                 handleCompleteTask(task);
             }
 
             System.out.println(task);
-        } catch (IOException | ClassNotFoundException e) {
-            System.err.println("Error reading task: " + e.getMessage());
-        }
+        });
     }
 
     void handleIncompleteTask(Task task, Socket socket) {
         tasksToDispatch.add(new TaskSocketPair(task, socket));
-
-        if (!DispatchThread.isAlive()) {
-            DispatchThread = new Thread(Dispatcher);
-            DispatchThread.start();
-            System.out.println("Woke up the system Dispatcher");
+        if (dispatchTaskFuture == null || dispatchTaskFuture.isDone()) {
+            System.out.println("Dispatching task: " + task);
+            dispatchTaskFuture = executorService.submit(Dispatcher);
         }
     }
 
     void handleCompleteTask(Task task) {
         finishedTasks.add(task);
-
-        if (!ReplyThread.isAlive()) {
-            ReplyThread = new Thread(Replier);
-            ReplyThread.start();
-            System.out.println("Woke up the system replier");
+        if (replyTaskFuture == null || replyTaskFuture.isDone()) {
+            System.out.println("Replying task: " + task);
+            replyTaskFuture = executorService.submit(Replier);
         }
     }
 }

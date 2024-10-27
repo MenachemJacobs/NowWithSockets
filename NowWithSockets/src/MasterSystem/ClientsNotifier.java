@@ -8,25 +8,26 @@ import java.net.Socket;
 import java.util.Map;
 import java.util.Queue;
 
-public class ClientsNotifier extends Thread {
+public class ClientsNotifier implements Runnable {
     Queue<Task> TasksToNotify;
     Map<Task, Socket> clientMap;
+    private volatile boolean running = false;
 
-    ClientsNotifier(Queue<Task> CompletedTaskQueue, Map<Task, Socket> clientMap){
+    ClientsNotifier(Queue<Task> CompletedTaskQueue, Map<Task, Socket> clientMap) {
         TasksToNotify = CompletedTaskQueue;
         this.clientMap = clientMap;
     }
 
     public void run() {
-        while (true) {
-            if(!TasksToNotify.isEmpty()) {
-                Task completedTask = TasksToNotify.poll();
+        running = true;
+        Task completedTask;
+        Socket clientSocket;
 
-//                if (completedTask == null) {
-//                    break;
-//                }
+        while (running) {
+            completedTask = TasksToNotify.poll();
 
-                Socket clientSocket = clientMap.get(completedTask);
+            if (completedTask != null) {
+                clientSocket = clientMap.get(completedTask);
 
                 if (clientSocket != null) {
                     notifyClient(clientSocket, completedTask);
@@ -38,11 +39,18 @@ public class ClientsNotifier extends Thread {
                         System.err.println("Error closing client socket: " + e.getMessage());
                     }
                 }
-            }
+            } else running = false;
         }
     }
 
-    void notifyClient(Socket client, Task completedTask){
+    public void restart() {
+        if (!running) {
+            Thread thread = new Thread(this);
+            thread.start();
+        }
+    }
+
+    void notifyClient(Socket client, Task completedTask) {
         try (ObjectOutputStream outStream = new ObjectOutputStream(client.getOutputStream())) {
             outStream.writeObject(completedTask);
             outStream.flush();

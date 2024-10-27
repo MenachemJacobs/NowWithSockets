@@ -45,17 +45,17 @@ public class SlaveSystemServer {
 
             if (task.taskType == TaskType.A)
                 ATaskQ.add(task);
-
             else if (task.taskType == TaskType.B)
                 BTaskQ.add(task);
-
             else
                 throw new IllegalArgumentException("New task type has been added without updating the slave server");
 
             for (TaskProcessor processor : TaskProcessorPool) {
-                if (!processor.isRunning.get()) {
-                    processor.isRunning.set(true);
-                    new Thread(processor).start();
+                synchronized (processor) {
+                    if (!processor.isRunning.get()) {
+                        processor.isRunning.set(true);
+                        new Thread(processor).start();
+                    }
                 }
             }
 
@@ -65,10 +65,8 @@ public class SlaveSystemServer {
 
     public static void main(String[] args) {
         try {
-            // Initialize the SlaveSystem.SlaveSystem with passed arguments (task type)
             SlaveSystemServer slaveSystem = new SlaveSystemServer();
 
-            // Start the server and listen for incoming tasks
             slaveSystem.startServer();
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
