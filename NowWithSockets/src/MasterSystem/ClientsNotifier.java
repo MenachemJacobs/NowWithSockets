@@ -20,14 +20,12 @@ public class ClientsNotifier implements Runnable {
 
     public void run() {
         running = true;
-        Task completedTask;
-        Socket clientSocket;
 
         while (running) {
-            completedTask = TasksToNotify.poll();
+            Task completedTask = TasksToNotify.poll();
 
             if (completedTask != null) {
-                clientSocket = clientMap.get(completedTask);
+                Socket clientSocket = clientMap.get(completedTask);
 
                 if (clientSocket != null) {
                     notifyClient(clientSocket, completedTask);

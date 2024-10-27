@@ -24,15 +24,13 @@ public class TasksToSlavesBroadcaster extends Thread {
     public void run() {
         running = true;
         TaskSocketPair taskSocket;
-        Task task;
-        Socket socket;
 
         while (running) {
             taskSocket = TasksSocketsToAssign.poll();
 
             if (taskSocket != null) {
-                task = taskSocket.task();
-                socket = taskSocket.socket();
+                Task task = taskSocket.task();
+                Socket socket = taskSocket.socket();
 
                 if (task != null && socket != null) {
                     clientMap.put(task, socket);

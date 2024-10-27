@@ -15,19 +15,12 @@ public class TaskProcessor implements Runnable {
     AtomicBoolean isRunning;
 
     String name;
-    Socket socket;
 
     TaskProcessor(Queue<Task> efficientStore, Queue<Task> inEfficientStore, AtomicBoolean isRunning, String name) {
         this.efficientStore = efficientStore;
         this.inEfficientStore = inEfficientStore;
         this.isRunning = isRunning;
         this.name = name;
-
-        try {
-            socket = new Socket("localhost", PortNumbers.MasterServerPort);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     public void run() {
@@ -48,32 +41,24 @@ public class TaskProcessor implements Runnable {
                 task.inefficientExecute();
                 System.out.println(name + "Executed task " + task.taskID + " inefficiently");
                 notifyMaster(task);
+                continue;
             }
-        }
 
-        // Ensure proper cleanup when the thread finishes
-        cleanup();
-        //TODO figure out a thread safe way to update status
-        isRunning.set(false);
+            // Ensure proper cleanup when the thread finishes
+            //TODO figure out a thread safe way to update status
+            isRunning.set(false);
+        }
     }
 
     void notifyMaster(Task task) {
-        try (ObjectOutputStream outStream = new ObjectOutputStream(socket.getOutputStream())) {
+        try (Socket tempSocket = new Socket("localhost", PortNumbers.MasterServerPort);
+             ObjectOutputStream outStream = new ObjectOutputStream(tempSocket.getOutputStream())) {
 
             outStream.writeObject(task);
             outStream.flush();
+
         } catch (IOException e) {
             System.err.println("Failed to notify master server about task completion: " + e.getMessage());
-        }
-    }
-
-    void cleanup() {
-        try{
-            if(socket != null && !socket.isClosed()) {
-                socket.close();
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 }

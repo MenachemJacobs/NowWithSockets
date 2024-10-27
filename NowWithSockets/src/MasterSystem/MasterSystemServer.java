@@ -32,8 +32,25 @@ public class MasterSystemServer {
         Dispatcher = new TasksToSlavesBroadcaster(tasksToDispatch, clientMap);
     }
 
+    private void addShutdownHook() {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("Shutting down the server...");
+            executorService.shutdown();
+            try {
+                if (!executorService.awaitTermination(10, TimeUnit.SECONDS)) {
+                    System.err.println("Forcing executor shutdown...");
+                    executorService.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                executorService.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }));
+    }
+
     public static void main(String[] args) {
         MasterSystemServer masterSystem = new MasterSystemServer();
+        masterSystem.addShutdownHook();
         masterSystem.startServer();
     }
 
@@ -42,6 +59,8 @@ public class MasterSystemServer {
             System.out.println("System listening on port: " + portNumber);
 
             while (true) {
+//              TODO: For some reason, the fact that the slave system triggers execution of this code is somehow
+//               preventing future execution
                 Socket socket = serverSocket.accept();
                 System.out.println("System accepted");
 
@@ -49,7 +68,6 @@ public class MasterSystemServer {
                 Object obj;
                 try (ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream())) {
                     obj = objectInputStream.readObject();
-                    System.out.println("Object received");
                 } catch (IOException | ClassNotFoundException e) {
                     System.err.println("Error reading task: " + e.getMessage());
                     continue; // Go to the next iteration if there is an error
@@ -71,18 +89,14 @@ public class MasterSystemServer {
     }
 
     void handleTask(Socket socket, Task task) {
-        System.out.println("Task Identified: " + task);
-
         executorService.submit(() -> {
             if (!task.isComplete) {
-                System.out.println("Task incomplete");
+                System.out.println("Task " + task.taskID + " incomplete");
                 handleIncompleteTask(task, socket);
             } else {
-                System.out.println("Task complete");
+                System.out.println("Task " + task.taskID + " complete");
                 handleCompleteTask(task);
             }
-
-            System.out.println(task);
         });
     }
 
