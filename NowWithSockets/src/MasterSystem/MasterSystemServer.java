@@ -11,29 +11,22 @@ import java.net.Socket;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MasterSystemServer {
     static int portNumber = PortNumbers.MasterServerPort;
+    Map<Task, Socket> clientMap = new ConcurrentHashMap<>();
 
-    Map<Task, Socket> clientMap;
+    Thread ReplyThread;
+    Runnable Replier;
+    Queue<Task> finishedTasks = new ConcurrentLinkedQueue<>();
 
-    ClientsNotifier Replier;
-    Queue<Task> finishedTasks = new LinkedBlockingQueue<>();
-    AtomicBoolean isReplierRunning = new AtomicBoolean(false);
-
-    TasksToSlavesBroadcaster Dispatcher;
-    Queue<TaskSocketPair> tasksToDispatch = new LinkedBlockingQueue<>();
-    AtomicBoolean isDispatcherRunning = new AtomicBoolean(false);
-
-    private ExecutorService executorService;
+    Thread  DispatchThread;
+    Runnable Dispatcher;
+    Queue<TaskSocketPair> tasksToDispatch = new ConcurrentLinkedQueue<>();
 
     MasterSystemServer() {
-        clientMap = new ConcurrentHashMap<>();
-        executorService = Executors.newFixedThreadPool(3);
-
-        Replier = new ClientsNotifier(finishedTasks, isReplierRunning, clientMap);
-        Dispatcher = new TasksToSlavesBroadcaster(tasksToDispatch, isDispatcherRunning, clientMap);
+        Replier = new ClientsNotifier(finishedTasks, clientMap);
+        Dispatcher = new TasksToSlavesBroadcaster(tasksToDispatch, clientMap);
     }
 
     public static void main(String[] args) {
@@ -42,51 +35,52 @@ public class MasterSystemServer {
     }
 
     private void startServer() {
-        try(ServerSocket serverSocket = new ServerSocket(portNumber)) {
+        try (ServerSocket serverSocket = new ServerSocket(portNumber)) {
             System.out.println("System listening on port: " + portNumber);
 
-            while(true){
+            while (true) {
                 Socket socket = serverSocket.accept();
                 System.out.println("System accepted");
 
                 handleTask(socket);
             }
-        } catch (IOException e) { System.err.println("Error reading task: " + e.getMessage()); }
-    }
-
-    private void handleTask(Socket socket) {
-        try(ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream())){
-            Task task = (Task) objectInputStream.readObject();
-
-            if(!task.isComplete) {
-                handleIncompleteTask(task, socket);
-            }
-            else {
-                handleCompleteTask(task);
-            }
-
-            System.out.println(task);
-        } catch (IOException | ClassNotFoundException e){
+        } catch (IOException e) {
             System.err.println("Error reading task: " + e.getMessage());
         }
     }
 
-    void handleIncompleteTask(Task task, Socket socket){
+    void handleTask(Socket socket) {
+        try (ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream())) {
+            Task task = (Task) objectInputStream.readObject();
+
+            if (!task.isComplete) {
+                handleIncompleteTask(task, socket);
+            } else {
+                handleCompleteTask(task);
+            }
+
+            System.out.println(task);
+        } catch (IOException | ClassNotFoundException e) {
+            System.err.println("Error reading task: " + e.getMessage());
+        }
+    }
+
+    void handleIncompleteTask(Task task, Socket socket) {
         tasksToDispatch.add(new TaskSocketPair(task, socket));
 
-        if (!isDispatcherRunning.get()) {
-            isDispatcherRunning.set(true);
-            executorService.submit(Dispatcher);
+        if (!DispatchThread.isAlive()) {
+            DispatchThread = new Thread(Dispatcher);
+            DispatchThread.start();
             System.out.println("Woke up the system Dispatcher");
         }
     }
 
-    void handleCompleteTask(Task task){
+    void handleCompleteTask(Task task) {
         finishedTasks.add(task);
 
-        if (!isReplierRunning.get()) {
-            isReplierRunning.set(true);
-            executorService.submit(Replier);
+        if (!ReplyThread.isAlive()) {
+            ReplyThread = new Thread(Replier);
+            ReplyThread.start();
             System.out.println("Woke up the system replier");
         }
     }

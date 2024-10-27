@@ -9,17 +9,13 @@ import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.Map;
 import java.util.Queue;
-import java.util.concurrent.atomic.AtomicBoolean;
 
-public class TasksToSlavesBroadcaster implements Runnable {
+public class TasksToSlavesBroadcaster extends Thread {
     Queue<TaskSocketPair> TasksSocketsToAssign;
-    AtomicBoolean amRunning;
     Map<Task, Socket> clientMap;
 
-    TasksToSlavesBroadcaster(Queue<TaskSocketPair> UnnasignedTaskQueue, AtomicBoolean isRunning,
-                             Map<Task, Socket> clientMap) {
+    TasksToSlavesBroadcaster(Queue<TaskSocketPair> UnnasignedTaskQueue, Map<Task, Socket> clientMap) {
         TasksSocketsToAssign = UnnasignedTaskQueue;
-        amRunning = isRunning;
         this.clientMap = clientMap;
     }
 
@@ -29,19 +25,19 @@ public class TasksToSlavesBroadcaster implements Runnable {
         Task task;
         Socket socket;
 
-        while ((taskSocket = TasksSocketsToAssign.poll()) != null) {
+        while (true) {
+            taskSocket = TasksSocketsToAssign.poll();
 
-            task = taskSocket.task();
-            socket = taskSocket.socket();
+            if (taskSocket != null) {
+                task = taskSocket.task();
+                socket = taskSocket.socket();
 
-
-            if(task != null && socket != null) {
-                clientMap.put(task, socket);
-                sendTaskToSlave(task);
+                if(task != null && socket != null) {
+                    clientMap.put(task, socket);
+                    sendTaskToSlave(task);
+                }
             }
         }
-
-        amRunning.set(false);
     }
 
     private void sendTaskToSlave(Task task) {
