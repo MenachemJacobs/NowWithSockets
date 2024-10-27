@@ -40,13 +40,6 @@ public class TasksToSlavesBroadcaster extends Thread {
         }
     }
 
-    public void restart() {
-        if (!running) {
-            Thread thread = new Thread(this);
-            thread.start();
-        }
-    }
-
     private void sendTaskToSlave(Task task) {
         try (Socket socket = new Socket("localhost", PortNumbers.SlaveServerPort);
              ObjectOutputStream ooStream = new ObjectOutputStream(socket.getOutputStream())) {

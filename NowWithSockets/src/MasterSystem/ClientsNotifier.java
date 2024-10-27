@@ -41,13 +41,6 @@ public class ClientsNotifier implements Runnable {
         }
     }
 
-    public void restart() {
-        if (!running) {
-            Thread thread = new Thread(this);
-            thread.start();
-        }
-    }
-
     void notifyClient(Socket client, Task completedTask) {
         try (ObjectOutputStream outStream = new ObjectOutputStream(client.getOutputStream())) {
             outStream.writeObject(completedTask);

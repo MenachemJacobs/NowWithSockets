@@ -59,10 +59,8 @@ public class MasterSystemServer {
             System.out.println("System listening on port: " + portNumber);
 
             while (true) {
-//              TODO: For some reason, the fact that the slave system triggers execution of this code is somehow
-//               preventing future execution
                 Socket socket = serverSocket.accept();
-                System.out.println("System accepted");
+                System.out.println("Connection accepted");
 
                 // Read the object directly in the startServer method
                 Object obj;
@@ -76,11 +74,8 @@ public class MasterSystemServer {
                 // Check if the object is an instance of Task
                 if (obj instanceof Task task) { // Using instanceof with pattern matching (Java 16+)
                     handleTask(socket, task);
-                } else if (obj != null) {
-                    // Log if obj is not a Task
-                    System.out.println("Received an object that is not a Task. Ignoring it.");
                 } else {
-                    System.out.println("No object received, nothing to process.");
+                    System.out.println("Received an invalid object type. Ignoring.");
                 }
             }
         } catch (IOException e) {
@@ -104,7 +99,15 @@ public class MasterSystemServer {
         tasksToDispatch.add(new TaskSocketPair(task, socket));
         if (dispatchTaskFuture == null || dispatchTaskFuture.isDone()) {
             System.out.println("Dispatching task: " + task);
-            dispatchTaskFuture = executorService.submit(Dispatcher);
+            dispatchTaskFuture = executorService.submit(() -> {
+                try {
+                    Dispatcher.run();
+                } catch (Exception e) {
+                    System.err.println("Dispatcher error: " + e.getMessage());
+                } finally {
+                    dispatchTaskFuture = null;  // Allow re-execution if necessary
+                }
+            });
         }
     }
 
@@ -112,7 +115,15 @@ public class MasterSystemServer {
         finishedTasks.add(task);
         if (replyTaskFuture == null || replyTaskFuture.isDone()) {
             System.out.println("Replying task: " + task);
-            replyTaskFuture = executorService.submit(Replier);
+            replyTaskFuture = executorService.submit(() -> {
+                try {
+                    Replier.run();
+                } catch (Exception e) {
+                    System.err.println("Replier error: " + e.getMessage());
+                } finally {
+                    replyTaskFuture = null;  // Allow re-execution if necessary
+                }
+            });
         }
     }
 }
