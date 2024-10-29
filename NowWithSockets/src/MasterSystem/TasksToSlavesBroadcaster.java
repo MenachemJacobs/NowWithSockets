@@ -9,6 +9,7 @@ import java.net.Socket;
 import java.util.concurrent.BlockingQueue;
 
 import static Components.PortNumbers.*;
+import static java.lang.Math.min;
 
 public class TasksToSlavesBroadcaster implements Runnable {
     BlockingQueue<Task> ToAssign;
@@ -47,7 +48,7 @@ public class TasksToSlavesBroadcaster implements Runnable {
                 ASlaveTime += 2;
             }
         } else {
-            if (BSlavePort > ASlaveTime + 8) {
+            if (BSlaveTime > ASlaveTime + 8) {
                 portNumber = ASlavePort;
                 ASlaveTime += 10;
             } else {
@@ -61,9 +62,13 @@ public class TasksToSlavesBroadcaster implements Runnable {
 
             ooStream.writeObject(task);
             ooStream.flush();
-            System.out.println("Sent task: " + task.taskID + " to the slave server");
+            System.out.println("Sent task: " + task.taskID + " to slave server " + (portNumber == ASlavePort ? "SlaveA" : "SlaveB"));
         } catch (IOException e) {
             System.err.println("Error sending task to slave server: " + e.getMessage());
         }
+
+        int min = min(ASlaveTime, BSlaveTime);
+        ASlaveTime -= min;
+        BSlaveTime -= min;
     }
 }

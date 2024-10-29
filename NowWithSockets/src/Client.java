@@ -17,7 +17,7 @@ public class Client {
     void execute_tasks() {
 
         for (Task task : tasks) {
-            try (Socket socket = new Socket("localhost", PortNumbers.MasterServerPort);
+            try (Socket socket = new Socket("localhost", PortNumbers.MasterClientPort);
                  ObjectOutputStream outTask = new ObjectOutputStream(socket.getOutputStream())) {
                 outTask.writeObject(task);
                 outTask.flush(); // Ensure the task is sent immediately

@@ -49,8 +49,9 @@ public class SlaveListener implements Runnable {
     }
 
     void HandleCommunication(Object object) {
-        if (object instanceof Task) {
-            completedTasks.add((Task) object);
-        }
+        if (object instanceof Task task) {
+            completedTasks.add(task);
+            System.out.println("Received task: " + task.taskID + " from slave");
+        } else System.out.println("Received object of unknown type " + object);
     }
 }

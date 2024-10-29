@@ -31,7 +31,7 @@ public class ClientsNotifier implements Runnable {
 
             if (clientSocket != null) {
                 notifyClient(clientSocket, completedTask);
-                System.out.println("Task ID " + completedTask.taskID + " client ID " + completedTask.clientID);
+                System.out.println("Client " + completedTask.clientID + " alerted to completion of task " + completedTask.taskID);
 
                 try {
                     clientSocket.close();

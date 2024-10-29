@@ -49,9 +49,10 @@ public class ClientListener implements Runnable {
 
     void HandleCommunication(Socket socket, Object object) {
         if (object instanceof Task task) {
+            System.out.println("Received task: " + task.taskID + " from client " + task.clientID);
             clientMap.put(task, socket);
             uncompletedTasks.add(task);
-        }
+        } else System.out.println("Received Object of unkown type: " + object);
     }
 }
 
