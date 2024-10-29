@@ -16,7 +16,6 @@ public class Client {
 
     void execute_tasks() {
 
-
         for (Task task : tasks) {
             try (Socket socket = new Socket("localhost", PortNumbers.MasterServerPort);
                  ObjectOutputStream outTask = new ObjectOutputStream(socket.getOutputStream())) {

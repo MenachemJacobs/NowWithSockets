@@ -1,47 +1,62 @@
 package MasterSystem;
 
-import Components.PortNumbers;
 import Components.Task;
-import Components.TaskSocketPair;
+import Components.TaskType;
 
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.util.Map;
-import java.util.Queue;
+import java.util.concurrent.BlockingQueue;
 
-public class TasksToSlavesBroadcaster extends Thread {
-    Queue<TaskSocketPair> TasksSocketsToAssign;
-    Map<Task, Socket> clientMap;
-    private volatile boolean running = false;
+import static Components.PortNumbers.*;
 
-    TasksToSlavesBroadcaster(Queue<TaskSocketPair> UnnasignedTaskQueue, Map<Task, Socket> clientMap) {
-        TasksSocketsToAssign = UnnasignedTaskQueue;
-        this.clientMap = clientMap;
+public class TasksToSlavesBroadcaster implements Runnable {
+    BlockingQueue<Task> ToAssign;
+
+    Integer ASlaveTime = 0;
+    Integer BSlaveTime = 0;
+
+    public TasksToSlavesBroadcaster(BlockingQueue<Task> UnassignedTaskQueue) {
+        ToAssign = UnassignedTaskQueue;
     }
 
-    // TODO I must remember to make sure that when the server wakes up the thread it sets the status to running
     public void run() {
-        running = true;
-        TaskSocketPair taskSocket;
+        Task uncompletedTask;
 
-        while (running) {
-            taskSocket = TasksSocketsToAssign.poll();
+        while (true) {
+            try {
+                uncompletedTask = ToAssign.take();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
 
-            if (taskSocket != null) {
-                Task task = taskSocket.task();
-                Socket socket = taskSocket.socket();
-
-                if (task != null && socket != null) {
-                    clientMap.put(task, socket);
-                    sendTaskToSlave(task);
-                }
-            } else running = false;
+            sendTaskToSlave(uncompletedTask);
         }
     }
 
+
     private void sendTaskToSlave(Task task) {
-        try (Socket socket = new Socket("localhost", PortNumbers.SlaveServerPort);
+        int portNumber;
+
+        if (task.taskType == TaskType.A) {
+            if (ASlaveTime > BSlaveTime + 8) {
+                portNumber = BSlavePort;
+                BSlaveTime += 10;
+            } else {
+                portNumber = ASlavePort;
+                ASlaveTime += 2;
+            }
+        } else {
+            if (BSlavePort > ASlaveTime + 8) {
+                portNumber = ASlavePort;
+                ASlaveTime += 10;
+            } else {
+                portNumber = BSlavePort;
+                BSlaveTime += 2;
+            }
+        }
+
+        try (Socket socket = new Socket("localhost", portNumber);
              ObjectOutputStream ooStream = new ObjectOutputStream(socket.getOutputStream())) {
 
             ooStream.writeObject(task);
