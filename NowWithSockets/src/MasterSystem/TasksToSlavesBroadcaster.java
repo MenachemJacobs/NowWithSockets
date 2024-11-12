@@ -115,8 +115,7 @@ public class TasksToSlavesBroadcaster implements Runnable {
 
             ooStream.writeObject(task);
             ooStream.flush();
-            System.out.println("Sent task: " + task.taskID +
-                    " to slave server " +
+            System.out.println("Sent task: " + task.taskID + " to slave server " +
                     (portNumber == ASlavePort ? "Slave A" : "Slave B"));
         } catch (IOException e) {
             System.err.println("Error sending task to slave server: " + e.getMessage());
