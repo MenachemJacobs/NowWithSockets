@@ -7,6 +7,7 @@ import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * The ClientsNotifier class is responsible for notifying clients
@@ -26,32 +27,19 @@ import java.util.concurrent.BlockingQueue;
  * that each completed task is communicated back to the correct client.
  * </p>
  */
-public class ClientsNotifier implements Runnable {
+public class ClientNotifier implements Runnable {
 
     /**
      * A blocking queue containing completed tasks that need to be
      * notified to the respective clients.
      */
-    BlockingQueue<Task> TasksToNotify;
+    public BlockingQueue<Task> TasksToNotify;
 
-    /**
-     * A map that associates each completed task with its corresponding
-     * client socket. This allows the notifier to identify the correct
-     * client for each completed task.
-     */
-    Map<Task, Socket> clientMap;
+    Socket myClient;
 
-    /**
-     * Constructs a new ClientsNotifier instance.
-     *
-     * @param CompletedTaskQueue the blocking queue containing completed
-     *                           tasks to notify clients about.
-     * @param clientMap          a map that associates completed tasks with
-     *                           their corresponding client sockets.
-     */
-    public ClientsNotifier(BlockingQueue<Task> CompletedTaskQueue, Map<Task, Socket> clientMap) {
-        TasksToNotify = CompletedTaskQueue;
-        this.clientMap = clientMap;
+    public ClientNotifier(Socket clientSocket) {
+        myClient = clientSocket;
+        TasksToNotify = new LinkedBlockingQueue<>();
     }
 
     /**
@@ -71,22 +59,11 @@ public class ClientsNotifier implements Runnable {
                 throw new RuntimeException(e);
             }
 
-            // Retrieve the corresponding client socket for the completed task
-            Socket clientSocket = clientMap.get(completedTask);
-
             // Notify the client if the socket is valid
-            if (clientSocket != null) {
-                notifyClient(clientSocket, completedTask);
-                System.out.println("Client " + completedTask.clientID +
-                        " alerted to completion of task " +
+            if (myClient != null) {
+                notifyClient(myClient, completedTask);
+                System.out.println("Client " + completedTask.clientID + " alerted to completion of task " +
                         completedTask.taskID);
-
-                // Close the client socket after notifying
-                try {
-                    clientSocket.close();
-                } catch (IOException e) {
-                    System.err.println("Error closing client socket: " + e.getMessage());
-                }
             }
         }
     }

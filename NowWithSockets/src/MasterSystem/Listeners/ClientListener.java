@@ -1,12 +1,11 @@
 package MasterSystem.Listeners;
 
-import Components.PortNumbers;
 import Components.Task;
-import MasterSystem.TasksToSlavesBroadcaster;
+import MasterSystem.ClientNotifier;
+import MasterSystem.SlaveDispatch;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
-import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
@@ -43,25 +42,24 @@ public class ClientListener implements Runnable {
      * A map that associates each task with the corresponding client
      * socket to enable future communication.
      */
-    Map<Task, Socket> clientMap;
+    Map<Task, ClientNotifier> taskNotifierMap;
 
     /**
      * The dispatcher responsible for sending tasks to slave servers.
      */
-    TasksToSlavesBroadcaster dispatcher;
+    SlaveDispatch dispatcher;
 
-    /**
-     * Constructs a new ClientListener instance.
-     *
-     * @param clientMap a map that associates tasks with client sockets,
-     *                  allowing for task tracking and communication.
-     */
-    public ClientListener(Map<Task, Socket> clientMap) {
-        this.clientMap = clientMap;
+    Socket clientSocket;
+    ClientNotifier myNotifier;
+
+    public ClientListener(Socket clientSocket) {
+        this.clientSocket = clientSocket;
 
         // Initialize and start the dispatcher for uncompleted tasks
-        dispatcher = new TasksToSlavesBroadcaster(uncompletedTasks);
+        dispatcher = new SlaveDispatch(uncompletedTasks);
         new Thread(dispatcher).start();
+        myNotifier = new ClientNotifier(clientSocket);
+        new Thread(myNotifier).start();
     }
 
     /**
@@ -71,23 +69,13 @@ public class ClientListener implements Runnable {
      * the task object sent by the client and processes it.
      */
     public void run() {
-        int portNumber = PortNumbers.MasterClientPort;
 
-        try (ServerSocket serverSocket = new ServerSocket(portNumber)) {
-            System.out.println("System listening on port: " + portNumber);
-
+        try (ObjectInputStream ois = new ObjectInputStream(clientSocket.getInputStream())) {
             while (true) {
-                Socket socket = serverSocket.accept();
-                System.out.println(connectionMessage);
-
                 // Handle incoming task from the connected client
-                try (ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream())) {
-                    HandleCommunication(socket, objectInputStream.readObject());
-                } catch (IOException | ClassNotFoundException e) {
-                    System.err.println("Error reading task: " + e.getMessage());
-                }
+                HandleCommunication(ois.readObject());
             }
-        } catch (IOException e) {
+        } catch (IOException | ClassNotFoundException e) {
             System.err.println("Error reading task: " + e.getMessage());
         }
     }
@@ -97,15 +85,13 @@ public class ClientListener implements Runnable {
      * received object is a Task, it is added to the uncompleted
      * tasks queue and mapped to the client's socket.
      *
-     * @param socket the socket associated with the client sending the task.
      * @param object the object received from the client, expected to be a Task.
      */
-    void HandleCommunication(Socket socket, Object object) {
+    void HandleCommunication(Object object) {
         if (object instanceof Task task) {
-            System.out.println("Received task: " + task.taskID +
-                    " from client " + task.clientID);
-            clientMap.put(task, socket);
+            System.out.println("Received task: " + task.taskID + " from client " + task.clientID);
             uncompletedTasks.add(task);
+            taskNotifierMap.put(task, myNotifier);
         } else {
             System.out.println("Received Object of unknown type: " + object);
         }

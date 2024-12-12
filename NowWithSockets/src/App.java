@@ -15,7 +15,7 @@ public class App {
                 taskarray[j] = new Task(i * size + j, i, type);
             }
 
-            (new Client(i, taskarray)).execute_tasks();
+//            (new Client(i, taskarray)).execute_tasks();
         }
     }
 }

@@ -1,9 +1,14 @@
 package MasterSystem;
 
+import Components.PortNumbers;
+import Components.SlaveSocketManager;
 import Components.Task;
+import Components.TaskType;
 import MasterSystem.Listeners.ClientListener;
 import MasterSystem.Listeners.SlaveListener;
 
+import java.io.IOException;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Map;
 import java.util.concurrent.*;
@@ -39,28 +44,31 @@ public class MasterSystemServer {
      * This allows the server to track which client submitted each task
      * for later notification upon task completion.
      */
-    Map<Task, Socket> clientMap = new ConcurrentHashMap<>();
-
-    /**
-     * The listener responsible for handling client connections and task submissions.
-     */
-    ClientListener clientListener;
-
-    /**
-     * The listener responsible for handling slave connections and task completions.
-     */
-    SlaveListener slaveListener;
+    Map<Task, ClientNotifier> TaskNotifierMap = new ConcurrentHashMap<>();
 
     /**
      * Constructs a new MasterSystemServer instance. This constructor initializes
      * the client and slave listeners and starts them in separate threads.
      */
+    // TODO: Slave needs its own thread set, as does each client
     public MasterSystemServer() {
-        clientListener = new ClientListener(clientMap);
-        slaveListener = new SlaveListener(clientMap);
+        SlaveSocketManager.addSlaveSocket(PortNumbers.ASlavePort);
+        SlaveSocketManager.addSlaveSocket(PortNumbers.BSlavePort);
 
-        new Thread(clientListener).start();
-        new Thread(slaveListener).start();
+        new Thread(new SlaveListener(TaskType.A, TaskNotifierMap)).start();
+        new Thread(new SlaveListener(TaskType.B, TaskNotifierMap)).start();
+
+        try (ServerSocket serverSocket = new ServerSocket(PortNumbers.MasterClientPort)) {
+            System.out.println("MasterSystemServer is running...");
+
+            while (true) {
+                Socket clientSocket = serverSocket.accept();
+                System.out.println("New client connected: " + clientSocket.getInetAddress());
+                new Thread(new ClientListener(clientSocket)).start();
+            }
+        } catch (IOException e) {
+            System.err.println("Server exception: " + e.getMessage());
+        }
     }
 
     /**

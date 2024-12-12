@@ -2,15 +2,14 @@ package MasterSystem.Listeners;
 
 import Components.PortNumbers;
 import Components.Task;
-import MasterSystem.ClientsNotifier;
+import Components.TaskType;
+import MasterSystem.ClientNotifier;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * The SlaveListener class is responsible for listening to incoming
@@ -28,42 +27,25 @@ import java.util.concurrent.LinkedBlockingQueue;
  */
 public class SlaveListener implements Runnable {
 
-    /**
-     * Message indicating a successful connection with a slave server.
-     */
     String connectionMessage = "Connection made with client";
+    TaskType myType;
+    Map<Task, ClientNotifier> TaskNotifierMap;
+    Socket slaveSocket;
 
-    /**
-     * A blocking queue that holds completed tasks received from
-     * slave servers waiting to be notified to clients.
-     */
-    BlockingQueue<Task> completedTasks = new LinkedBlockingQueue<>();
+    //TODO distinguish slaves in the listeners, persist the sockets
+    public SlaveListener(TaskType myType, Map<Task, ClientNotifier> TaskNotifierMap) {
+        this.TaskNotifierMap = TaskNotifierMap;
+        this.myType = myType;
+        int portNumber = myType == TaskType.A ? PortNumbers.ASlavePort : PortNumbers.BSlavePort;
 
-    /**
-     * A map that associates each completed task with the
-     * corresponding client socket for future communication.
-     */
-    Map<Task, Socket> clientMap;
-
-    /**
-     * The notifier responsible for notifying clients about
-     * completed tasks.
-     */
-    ClientsNotifier Replier;
-
-    /**
-     * Constructs a new SlaveListener instance.
-     *
-     * @param clientMap a map that associates completed tasks with
-     *                  client sockets, allowing for task tracking
-     *                  and communication.
-     */
-    public SlaveListener(Map<Task, Socket> clientMap) {
-        this.clientMap = clientMap;
-
-        // Initialize and start the notifier for completed tasks
-        Replier = new ClientsNotifier(completedTasks, clientMap);
-        new Thread(Replier).start();
+        try {
+            ServerSocket serverSocket = new ServerSocket(portNumber);
+            System.out.println("System listening on port: " + portNumber);
+            this.slaveSocket = serverSocket.accept();
+            System.out.println(connectionMessage);
+        } catch (IOException e) {
+            System.err.println("Error establishing connection: " + e.getMessage());
+        }
     }
 
     /**
@@ -73,24 +55,13 @@ public class SlaveListener implements Runnable {
      * it reads the task object sent by the slave and processes it.
      */
     public void run() {
-        int portNumber = PortNumbers.MasterSlavePort;
-
-        try (ServerSocket serverSocket = new ServerSocket(portNumber)) {
-            System.out.println("System listening on port: " + portNumber);
-
-            while (true) {
-                Socket socket = serverSocket.accept();
-                System.out.println(connectionMessage);
-
-                // Handle incoming task from the connected slave server
-                try (ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream())) {
-                    HandleCommunication(objectInputStream.readObject());
-                } catch (IOException | ClassNotFoundException e) {
-                    System.err.println("Error reading task: " + e.getMessage());
-                }
+        while (true) {
+            // Handle incoming task from the connected slave server
+            try (ObjectInputStream objectInputStream = new ObjectInputStream(slaveSocket.getInputStream())) {
+                HandleCommunication(objectInputStream.readObject());
+            } catch (IOException | ClassNotFoundException e) {
+                System.err.println("Error reading task: " + e.getMessage());
             }
-        } catch (IOException e) {
-            System.err.println("Error reading task: " + e.getMessage());
         }
     }
 
@@ -104,7 +75,7 @@ public class SlaveListener implements Runnable {
      */
     void HandleCommunication(Object object) {
         if (object instanceof Task task) {
-            completedTasks.add(task);
+            TaskNotifierMap.get(task).TasksToNotify.add(task);
             System.out.println("Received task: " + task.taskID + " from slave");
         } else {
             System.out.println("Received object of unknown type " + object);

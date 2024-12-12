@@ -1,5 +1,6 @@
 package MasterSystem;
 
+import Components.SlaveSocketManager;
 import Components.Task;
 import Components.TaskType;
 
@@ -7,6 +8,7 @@ import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static Components.PortNumbers.*;
 import static java.lang.Math.min;
@@ -24,7 +26,7 @@ import static java.lang.Math.min;
  * for processing.
  * </p>
  */
-public class TasksToSlavesBroadcaster implements Runnable {
+public class SlaveDispatch implements Runnable {
 
     /**
      * A blocking queue that holds tasks waiting to be assigned
@@ -32,15 +34,11 @@ public class TasksToSlavesBroadcaster implements Runnable {
      */
     BlockingQueue<Task> ToAssign;
 
-    /**
-     * The accumulated processing time for tasks assigned to Slave A.
-     */
-    Integer ASlaveTime = 0;
-
-    /**
-     * The accumulated processing time for tasks assigned to Slave B.
-     */
-    Integer BSlaveTime = 0;
+    static final AtomicInteger ASlaveTime = new AtomicInteger(0);
+    static final AtomicInteger BSlaveTime = new AtomicInteger(0);
+    static final int EFFICIENT_TIME = 2;
+    static final int INEFFICIENT_TIME = 10;
+    static final int TIME_THRESHOLD = 8;
 
     /**
      * Constructs a new TasksToSlavesBroadcaster instance.
@@ -48,7 +46,7 @@ public class TasksToSlavesBroadcaster implements Runnable {
      * @param UnassignedTaskQueue the blocking queue containing tasks
      *                            that are waiting to be assigned to slaves.
      */
-    public TasksToSlavesBroadcaster(BlockingQueue<Task> UnassignedTaskQueue) {
+    public SlaveDispatch(BlockingQueue<Task> UnassignedTaskQueue) {
         ToAssign = UnassignedTaskQueue;
     }
 
@@ -65,12 +63,11 @@ public class TasksToSlavesBroadcaster implements Runnable {
             try {
                 // Wait for an unassigned task to become available
                 uncompletedTask = ToAssign.take();
+                // Send the retrieved task to the selected slave server
+                sendTaskToSlave(uncompletedTask);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
-
-            // Send the retrieved task to the selected slave server
-            sendTaskToSlave(uncompletedTask);
         }
     }
 
@@ -87,43 +84,50 @@ public class TasksToSlavesBroadcaster implements Runnable {
      *
      * @param task the task to be sent to the slave server for processing.
      */
-    private void sendTaskToSlave(Task task) {
+    static void sendTaskToSlave(Task task) {
         int portNumber;
 
-        // Determine which slave to send the task to based on task type and current workload
-        if (task.taskType == TaskType.A) {
-            if (ASlaveTime > BSlaveTime + 8) {
-                portNumber = BSlavePort;
-                BSlaveTime += 10; // Increase workload for Slave B
+        synchronized (SlaveDispatch.class) {
+            // Determine which slave to send the task to based on task type and current workload
+            if (task.taskType == TaskType.A) {
+                if (ASlaveTime.get() > BSlaveTime.get() + TIME_THRESHOLD) {
+                    portNumber = BSlavePort;
+                    BSlaveTime.addAndGet(INEFFICIENT_TIME); // Increase workload for Slave B
+                } else {
+                    portNumber = ASlavePort;
+                    ASlaveTime.addAndGet(EFFICIENT_TIME); // Increase workload for Slave A
+                }
             } else {
-                portNumber = ASlavePort;
-                ASlaveTime += 2; // Increase workload for Slave A
+                if (BSlaveTime.get() > ASlaveTime.get() + TIME_THRESHOLD) {
+                    portNumber = ASlavePort;
+                    ASlaveTime.addAndGet(INEFFICIENT_TIME); // Increase workload for Slave A
+                } else {
+                    portNumber = BSlavePort;
+                    BSlaveTime.addAndGet(EFFICIENT_TIME); // Increase workload for Slave B
+                }
             }
-        } else {
-            if (BSlaveTime > ASlaveTime + 8) {
-                portNumber = ASlavePort;
-                ASlaveTime += 10; // Increase workload for Slave A
-            } else {
-                portNumber = BSlavePort;
-                BSlaveTime += 2; // Increase workload for Slave B
-            }
-        }
-
-        // Establish a socket connection to the selected slave server and send the task
-        try (Socket socket = new Socket("localhost", portNumber);
-             ObjectOutputStream ooStream = new ObjectOutputStream(socket.getOutputStream())) {
-
-            ooStream.writeObject(task);
-            ooStream.flush();
-            System.out.println("Sent task: " + task.taskID + " to slave server " +
-                    (portNumber == ASlavePort ? "Slave A" : "Slave B"));
-        } catch (IOException e) {
-            System.err.println("Error sending task to slave server: " + e.getMessage());
         }
 
         // Adjust the processing times of the slaves after sending the task
-        int min = min(ASlaveTime, BSlaveTime);
-        ASlaveTime -= min;
-        BSlaveTime -= min;
+        int minTime = min(ASlaveTime.get(), BSlaveTime.get());
+        ASlaveTime.addAndGet(-minTime);
+        BSlaveTime.addAndGet(-minTime);
+
+
+        // Establish a socket connection to the selected slave server and send the task
+        try {
+            Socket socket = SlaveSocketManager.getSlaveSocket(portNumber);
+
+            try (ObjectOutputStream ooStream = new ObjectOutputStream(socket.getOutputStream())) {
+                ooStream.writeObject(task);
+                ooStream.flush();
+                System.out.println("Sent task: " + task.taskID + " to slave server " + (portNumber == ASlavePort ? "Slave A" : "Slave B"));
+            } finally {
+                SlaveSocketManager.releaseSlaveSocket(portNumber);
+            }
+
+        } catch (IOException | InterruptedException e) {
+            System.err.println("Error sending task to slave server: " + e.getMessage());
+        }
     }
 }
