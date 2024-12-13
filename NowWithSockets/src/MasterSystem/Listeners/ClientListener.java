@@ -52,8 +52,9 @@ public class ClientListener implements Runnable {
     Socket clientSocket;
     ClientNotifier myNotifier;
 
-    public ClientListener(Socket clientSocket) {
+    public ClientListener(Socket clientSocket, Map<Task, ClientNotifier> taskNotifierMap) {
         this.clientSocket = clientSocket;
+        this.taskNotifierMap = taskNotifierMap;
 
         // Initialize and start the dispatcher for uncompleted tasks
         dispatcher = new SlaveDispatch(uncompletedTasks);

@@ -64,7 +64,7 @@ public class MasterSystemServer {
             while (true) {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("New client connected: " + clientSocket.getInetAddress());
-                new Thread(new ClientListener(clientSocket)).start();
+                new Thread(new ClientListener(clientSocket, TaskNotifierMap)).start();
             }
         } catch (IOException e) {
             System.err.println("Server exception: " + e.getMessage());
