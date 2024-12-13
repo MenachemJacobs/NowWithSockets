@@ -43,7 +43,7 @@ public class BSlave {
     /**
      * The notifier that communicates completed tasks back to the master.
      */
-    MasterNotifier masterNotifier = new MasterNotifier(Done);
+    MasterNotifier masterNotifier;
 
     /**
      * The main entry point for the BSlave application. This method
@@ -65,6 +65,13 @@ public class BSlave {
     void StartServer() {
         int portNumber = PortNumbers.BSlavePort;
         String connectionMessage = "Slave B receiving a task";
+
+        try {
+            Socket slaveListener = new Socket("localhost", PortNumbers.BSlaveListenerPort);
+            masterNotifier = new MasterNotifier(slaveListener, Done);
+        } catch (IOException e) {
+            System.err.println("Error connecting to master: " + e.getMessage());
+        }
 
         // Start threads for processing tasks and notifying the master
         new Thread(myWorker).start();

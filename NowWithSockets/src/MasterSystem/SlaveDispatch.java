@@ -39,6 +39,7 @@ public class SlaveDispatch implements Runnable {
     static final int EFFICIENT_TIME = 2;
     static final int INEFFICIENT_TIME = 10;
     static final int TIME_THRESHOLD = 8;
+    private volatile boolean running = true;
 
     /**
      * Constructs a new TasksToSlavesBroadcaster instance.
@@ -59,13 +60,13 @@ public class SlaveDispatch implements Runnable {
     public void run() {
         Task uncompletedTask;
 
-        while (true) {
+        while (running) {
             try {
                 // Wait for an unassigned task to become available
                 uncompletedTask = ToAssign.take();
-                // Send the retrieved task to the selected slave server
                 sendTaskToSlave(uncompletedTask);
             } catch (InterruptedException e) {
+                if (!running) break;
                 throw new RuntimeException(e);
             }
         }
@@ -113,21 +114,28 @@ public class SlaveDispatch implements Runnable {
         ASlaveTime.addAndGet(-minTime);
         BSlaveTime.addAndGet(-minTime);
 
+        int retries = 3;
 
-        // Establish a socket connection to the selected slave server and send the task
-        try {
-            Socket socket = SlaveSocketManager.getSlaveSocket(portNumber);
+        while (retries-- > 0) {
 
-            try (ObjectOutputStream ooStream = new ObjectOutputStream(socket.getOutputStream())) {
-                ooStream.writeObject(task);
-                ooStream.flush();
-                System.out.println("Sent task: " + task.taskID + " to slave server " + (portNumber == ASlavePort ? "Slave A" : "Slave B"));
-            } finally {
-                SlaveSocketManager.releaseSlaveSocket(portNumber);
+            // Establish a socket connection to the selected slave server and send the task
+            try {
+                Socket socket = SlaveSocketManager.getSlaveSocket(portNumber);
+
+                try (ObjectOutputStream ooStream = new ObjectOutputStream(socket.getOutputStream())) {
+                    ooStream.writeObject(task);
+                    ooStream.flush();
+                    System.out.println("Sent task: " + task.taskID + " to slave server " + (portNumber == ASlavePort ? "Slave A" : "Slave B"));
+                    return;
+                } finally {
+                    SlaveSocketManager.releaseSlaveSocket(portNumber);
+                }
+
+            } catch (IOException | InterruptedException e) {
+                retries--;
+                System.err.println("Error sending task to slave server, retries left: " + retries);
+                if (retries == 0) System.err.println("Task failed after 3 retries: " + task.taskID);
             }
-
-        } catch (IOException | InterruptedException e) {
-            System.err.println("Error sending task to slave server: " + e.getMessage());
         }
     }
 }

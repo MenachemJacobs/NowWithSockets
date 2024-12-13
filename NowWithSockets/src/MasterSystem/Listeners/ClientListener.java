@@ -70,14 +70,17 @@ public class ClientListener implements Runnable {
      * the task object sent by the client and processes it.
      */
     public void run() {
-
         try (ObjectInputStream ois = new ObjectInputStream(clientSocket.getInputStream())) {
             while (true) {
+                Object received = ois.readObject();
+                if (received == null) break; // Exit if the client closes the connection
                 // Handle incoming task from the connected client
-                HandleCommunication(ois.readObject());
+                HandleCommunication(received);
             }
         } catch (IOException | ClassNotFoundException e) {
             System.err.println("Error reading task: " + e.getMessage());
+        } finally {
+            cleanup(); // Ensure proper cleanup
         }
     }
 
@@ -95,6 +98,16 @@ public class ClientListener implements Runnable {
             taskNotifierMap.put(task, myNotifier);
         } else {
             System.out.println("Received Object of unknown type: " + object);
+        }
+    }
+
+    private void cleanup() {
+        try {
+            if (clientSocket != null && !clientSocket.isClosed())
+                clientSocket.close();
+
+        } catch (IOException e) {
+            System.err.println("Error closing client socket: " + e.getMessage());
         }
     }
 }

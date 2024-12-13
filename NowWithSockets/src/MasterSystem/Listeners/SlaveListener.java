@@ -28,24 +28,13 @@ import java.util.Map;
 public class SlaveListener implements Runnable {
 
     String connectionMessage = "Connection made with client";
-    TaskType myType;
-    Map<Task, ClientNotifier> TaskNotifierMap;
-    Socket slaveSocket;
+    private final TaskType taskType;
+    private final Map<Task, ClientNotifier> TaskNotifierMap;
 
     //TODO distinguish slaves in the listeners, persist the sockets
     public SlaveListener(TaskType myType, Map<Task, ClientNotifier> TaskNotifierMap) {
         this.TaskNotifierMap = TaskNotifierMap;
-        this.myType = myType;
-        int portNumber = myType == TaskType.A ? PortNumbers.ASlavePort : PortNumbers.BSlavePort;
-
-        try {
-            ServerSocket serverSocket = new ServerSocket(portNumber);
-            System.out.println("System listening on port: " + portNumber);
-            this.slaveSocket = serverSocket.accept();
-            System.out.println(connectionMessage);
-        } catch (IOException e) {
-            System.err.println("Error establishing connection: " + e.getMessage());
-        }
+        taskType = myType;
     }
 
     /**
@@ -54,15 +43,35 @@ public class SlaveListener implements Runnable {
      * slave server connections. When a connection is established,
      * it reads the task object sent by the slave and processes it.
      */
+    @Override
     public void run() {
-        while (true) {
-            // Handle incoming task from the connected slave server
-            try (ObjectInputStream objectInputStream = new ObjectInputStream(slaveSocket.getInputStream())) {
-                HandleCommunication(objectInputStream.readObject());
-            } catch (IOException | ClassNotFoundException e) {
-                System.err.println("Error reading task: " + e.getMessage());
+        try (ServerSocket serverSocket = new ServerSocket(getPortForTaskType(taskType))) {
+            while (true) {
+                try (Socket slaveSocket = serverSocket.accept();
+                     ObjectInputStream inputStream = new ObjectInputStream(slaveSocket.getInputStream())) {
+
+                    // Process tasks from the slave socket
+                    Object receivedObject = inputStream.readObject();
+                    HandleCommunication(receivedObject);
+
+                } catch (IOException | ClassNotFoundException e) {
+                    System.err.println("Error processing connection: " + e.getMessage());
+                }
             }
+        } catch (IOException e) {
+            System.err.println("Error establishing server socket: " + e.getMessage());
         }
+
+    }
+
+    private int getPortForTaskType(TaskType taskType) {
+        // Return the appropriate port number based on the task type
+        if (taskType == TaskType.A) {
+            return PortNumbers.ASlavePort;
+        } else if (taskType == TaskType.B) {
+            return PortNumbers.BSlavePort;
+        }
+        throw new IllegalArgumentException("Unknown task type: " + taskType);
     }
 
     /**

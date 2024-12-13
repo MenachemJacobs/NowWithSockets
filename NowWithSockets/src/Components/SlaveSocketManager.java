@@ -10,14 +10,24 @@ public class SlaveSocketManager {
     private static final ConcurrentHashMap<Integer, Semaphore> socketSemaphores = new ConcurrentHashMap<>();
 
     public static void addSlaveSocket(int port) {
-        try {
-            Socket socket = new Socket("localhost", port);
-            slaveSockets.put(port, socket);
-            socketSemaphores.put(port, new Semaphore(1));
-            System.out.println("Connected to slave on port: " + port);
-        } catch (IOException e) {
-            System.err.println("Error connecting to slave on port: " + port + " - " + e.getMessage());
+        while (true) {
+            try {
+                Socket socket = new Socket("localhost", port);
+                slaveSockets.put(port, socket);
+                socketSemaphores.put(port, new Semaphore(1));
+                System.out.println("Connected to slave on port: " + port);
+                break; // Exit the loop once the connection is successful
+            } catch (IOException e) {
+                System.err.println("Error connecting to slave on port: " + port + " - " + e.getMessage());
+                try {
+                    Thread.sleep(1000); // Sleep for a short period before retrying
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    System.err.println("Thread interrupted while waiting to retry connection.");
+                }
+            }
         }
+
     }
 
     public static Socket getSlaveSocket(int port) throws InterruptedException {

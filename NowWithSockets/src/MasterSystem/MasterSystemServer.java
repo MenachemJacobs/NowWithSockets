@@ -38,6 +38,8 @@ import java.util.concurrent.*;
  * @see SlaveListener
  */
 public class MasterSystemServer {
+    ExecutorService clientExecutor = Executors.newCachedThreadPool();
+    ExecutorService slaveExecutor = Executors.newFixedThreadPool(2);
 
     /**
      * A map that associates each task with its corresponding client socket.
@@ -50,13 +52,13 @@ public class MasterSystemServer {
      * Constructs a new MasterSystemServer instance. This constructor initializes
      * the client and slave listeners and starts them in separate threads.
      */
-    // TODO: Slave needs its own thread set, as does each client
+    // TODO: Slaves needs their own thread set
     public MasterSystemServer() {
         SlaveSocketManager.addSlaveSocket(PortNumbers.ASlavePort);
         SlaveSocketManager.addSlaveSocket(PortNumbers.BSlavePort);
 
-        new Thread(new SlaveListener(TaskType.A, TaskNotifierMap)).start();
-        new Thread(new SlaveListener(TaskType.B, TaskNotifierMap)).start();
+        slaveExecutor.execute(new SlaveListener(TaskType.A, TaskNotifierMap));
+        slaveExecutor.execute(new SlaveListener(TaskType.B, TaskNotifierMap));
 
         try (ServerSocket serverSocket = new ServerSocket(PortNumbers.MasterClientPort)) {
             System.out.println("MasterSystemServer is running...");
@@ -64,10 +66,13 @@ public class MasterSystemServer {
             while (true) {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("New client connected: " + clientSocket.getInetAddress());
-                new Thread(new ClientListener(clientSocket, TaskNotifierMap)).start();
+                clientExecutor.execute(new ClientListener(clientSocket, TaskNotifierMap));
             }
         } catch (IOException e) {
             System.err.println("Server exception: " + e.getMessage());
+        } finally {
+            clientExecutor.shutdown();
+            slaveExecutor.shutdown();
         }
     }
 

@@ -5,7 +5,6 @@ import Components.Task;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -60,10 +59,12 @@ public class ClientNotifier implements Runnable {
             }
 
             // Notify the client if the socket is valid
-            if (myClient != null) {
+            if (myClient != null && !myClient.isClosed()) {
                 notifyClient(myClient, completedTask);
                 System.out.println("Client " + completedTask.clientID + " alerted to completion of task " +
                         completedTask.taskID);
+            } else {
+                System.err.println("Client socket is invalid or closed");
             }
         }
     }

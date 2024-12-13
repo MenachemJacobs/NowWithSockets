@@ -11,8 +11,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class Client {
     int idNumber;
-    static int taskCounter = 0;
-    static AtomicInteger clientCounter = new AtomicInteger(0);
+    private int taskCounter = 0;
+    private static final AtomicInteger clientCounter = new AtomicInteger(0);
 
     Client(int idNumber) {
         this.idNumber = idNumber;
