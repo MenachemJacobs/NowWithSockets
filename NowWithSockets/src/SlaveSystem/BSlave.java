@@ -28,7 +28,7 @@ public class BSlave {
     /**
      * A blocking queue that holds tasks that need to be processed.
      */
-    BlockingQueue<Task> ToDo = new LinkedBlockingQueue<>();
+    BlockingQueue<Task> TasksToDo = new LinkedBlockingQueue<>();
 
     /**
      * A blocking queue that holds tasks that have been completed.
@@ -38,7 +38,7 @@ public class BSlave {
     /**
      * The task processor that executes tasks of type B.
      */
-    TaskProcessor myWorker = new TaskProcessor(TaskType.B, ToDo, Done);
+    TaskProcessor myWorker = new TaskProcessor(TaskType.B, TasksToDo, Done);
 
     /**
      * The notifier that communicates completed tasks back to the master.
@@ -88,7 +88,7 @@ public class BSlave {
     /**
      * Receives a task from a connected client through the provided socket.
      * It reads the task object from the input stream and adds it to the
-     * ToDo queue for processing.
+     * TasksToDo queue for processing.
      *
      * @param socket the socket through which the task is received.
      */
@@ -97,7 +97,7 @@ public class BSlave {
             Object obj = inputStream.readObject();
             if (obj instanceof Task task) {
                 System.out.println("BSlave received task: " + task.taskID);
-                ToDo.put(task);  // Add the task to the ToDo queue
+                TasksToDo.put(task);
             }
         } catch (IOException | ClassNotFoundException | InterruptedException e) {
             System.err.println("Error reading task: " + e.getMessage());
