@@ -32,13 +32,13 @@ public class ClientNotifier implements Runnable {
      * A blocking queue containing completed tasks that need to be
      * notified to the respective clients.
      */
-    public BlockingQueue<Task> TasksToNotify;
+    public BlockingQueue<Task> completedTasks;
 
     Socket myClient;
 
     public ClientNotifier(Socket clientSocket) {
         myClient = clientSocket;
-        TasksToNotify = new LinkedBlockingQueue<>();
+        completedTasks = new LinkedBlockingQueue<>();
     }
 
     /**
@@ -53,7 +53,7 @@ public class ClientNotifier implements Runnable {
         while (true) {
             try {
                 // Wait for a completed task to become available
-                completedTask = TasksToNotify.take();
+                completedTask = completedTasks.take();
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }

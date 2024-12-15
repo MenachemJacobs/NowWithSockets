@@ -64,9 +64,11 @@ public class SlaveDispatch implements Runnable {
 
         while (running) {
             try {
-                // Wait for an unassigned task to become available
-                uncompletedTask = uncompletedTasks.take();
-                sendTaskToSlave(uncompletedTask);
+                if(!uncompletedTasks.isEmpty()) {
+                    // Wait for an unassigned task to become available
+                    uncompletedTask = uncompletedTasks.take();
+                    sendTaskToSlave(uncompletedTask);
+                }
             } catch (InterruptedException e) {
                 if (!running) break;
                 throw new RuntimeException(e);

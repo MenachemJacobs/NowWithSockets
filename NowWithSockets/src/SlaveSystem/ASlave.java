@@ -28,22 +28,8 @@ public class ASlave {
     /**
      * A blocking queue that holds tasks that need to be processed.
      */
-    BlockingQueue<Task> TasksToDo = new LinkedBlockingQueue<>();
+    BlockingQueue<Task> UncompletedTasks = new LinkedBlockingQueue<>();
 
-    /**
-     * A blocking queue that holds tasks that have been completed.
-     */
-    BlockingQueue<Task> Done = new LinkedBlockingQueue<>();
-
-    /**
-     * The task processor that executes tasks of type A.
-     */
-    TaskProcessor myWorker = new TaskProcessor(TaskType.A, TasksToDo, Done);
-
-    /**
-     * The notifier that communicates completed tasks back to the master.
-     */
-    MasterNotifier masterNotifier;
 
     /**
      * The main entry point for the ASlave application. This method
@@ -66,7 +52,9 @@ public class ASlave {
         int portNumber = PortNumbers.ASlavePort;
         String connectionMessage = "Slave A receiving a task";
 
-        masterNotifier = new MasterNotifier(PortNumbers.ASlaveListenerPort, Done);
+        BlockingQueue<Task> CompletedTasks = new LinkedBlockingQueue<>();
+        TaskProcessor myWorker = new TaskProcessor(TaskType.A, UncompletedTasks, CompletedTasks);
+        MasterNotifier masterNotifier = new MasterNotifier(PortNumbers.ASlaveListenerPort, CompletedTasks);
 
         // Start threads for processing tasks and notifying the master
         new Thread(myWorker).start();
@@ -97,7 +85,7 @@ public class ASlave {
             Object obj = inputStream.readObject();
             if (obj instanceof Task task) {
                 System.out.println("ASlave received task: " + task.taskID);
-                TasksToDo.put(task);  // Add the task to the TasksToDo queue
+                UncompletedTasks.put(task);  // Add the task to the UncompletedTasks queue
             }
         } catch (IOException | ClassNotFoundException | InterruptedException e) {
             System.err.println("Error reading task: " + e.getMessage());

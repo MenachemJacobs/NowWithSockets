@@ -28,22 +28,7 @@ public class BSlave {
     /**
      * A blocking queue that holds tasks that need to be processed.
      */
-    BlockingQueue<Task> TasksToDo = new LinkedBlockingQueue<>();
-
-    /**
-     * A blocking queue that holds tasks that have been completed.
-     */
-    BlockingQueue<Task> Done = new LinkedBlockingQueue<>();
-
-    /**
-     * The task processor that executes tasks of type B.
-     */
-    TaskProcessor myWorker = new TaskProcessor(TaskType.B, TasksToDo, Done);
-
-    /**
-     * The notifier that communicates completed tasks back to the master.
-     */
-    MasterNotifier masterNotifier;
+    BlockingQueue<Task> UncompletedTasks = new LinkedBlockingQueue<>();
 
     /**
      * The main entry point for the BSlave application. This method
@@ -66,7 +51,9 @@ public class BSlave {
         int portNumber = PortNumbers.BSlavePort;
         String connectionMessage = "Slave B receiving a task";
 
-        masterNotifier = new MasterNotifier(PortNumbers.BSlaveListenerPort, Done);
+        BlockingQueue<Task> CompletedTasks = new LinkedBlockingQueue<>();
+        TaskProcessor myWorker = new TaskProcessor(TaskType.A, UncompletedTasks, CompletedTasks);
+        MasterNotifier masterNotifier = new MasterNotifier(PortNumbers.ASlaveListenerPort, CompletedTasks);
 
         // Start threads for processing tasks and notifying the master
         new Thread(myWorker).start();
@@ -97,7 +84,7 @@ public class BSlave {
             Object obj = inputStream.readObject();
             if (obj instanceof Task task) {
                 System.out.println("BSlave received task: " + task.taskID);
-                TasksToDo.put(task);
+                UncompletedTasks.put(task);
             }
         } catch (IOException | ClassNotFoundException | InterruptedException e) {
             System.err.println("Error reading task: " + e.getMessage());

@@ -34,7 +34,6 @@ public class Client {
         try {
             masterSystemSocket = new Socket("localhost", PortNumbers.MasterClientPort);
             System.out.println("Connected to Master System.");
-            inTask = new ObjectInputStream(masterSystemSocket.getInputStream());
         } catch (IOException e) {
             System.err.println("Failed to connect to Master System: " + e.getMessage());
             System.exit(1);
@@ -42,7 +41,7 @@ public class Client {
     }
 
     void startMasterListener() {
-        MasterListener masterListener = new MasterListener(inTask);
+        MasterListener masterListener = new MasterListener(masterSystemSocket);
         Thread listenerThread = new Thread(masterListener);
         listenerThread.start();
     }

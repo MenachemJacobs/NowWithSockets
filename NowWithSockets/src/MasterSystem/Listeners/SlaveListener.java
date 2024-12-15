@@ -31,7 +31,6 @@ public class SlaveListener implements Runnable {
     private final TaskType taskType;
     private final Map<Task, ClientNotifier> TaskNotifierMap;
 
-    //TODO distinguish slaves in the listeners, persist the sockets
     public SlaveListener(TaskType myType, Map<Task, ClientNotifier> TaskNotifierMap) {
         this.TaskNotifierMap = TaskNotifierMap;
         taskType = myType;
@@ -45,23 +44,20 @@ public class SlaveListener implements Runnable {
      */
     @Override
     public void run() {
-        try (ServerSocket serverSocket = new ServerSocket(getPortForTaskType(taskType))) {
+        try (ServerSocket serverSocket = new ServerSocket(getPortForTaskType(taskType));
+             Socket slaveSocket = serverSocket.accept();
+             ObjectInputStream inputStream = new ObjectInputStream(slaveSocket.getInputStream())
+        ) {
+
             while (true) {
-                try (Socket slaveSocket = serverSocket.accept();
-                     ObjectInputStream inputStream = new ObjectInputStream(slaveSocket.getInputStream())) {
-
-                    // Process tasks from the slave socket
-                    Object receivedObject = inputStream.readObject();
-                    HandleCommunication(receivedObject);
-
-                } catch (IOException | ClassNotFoundException e) {
-                    System.err.println("Error processing connection: " + e.getMessage());
-                }
+                // Process tasks from the slave socket
+                Object receivedObject = inputStream.readObject();
+                HandleCommunication(receivedObject);
             }
-        } catch (IOException e) {
+
+        } catch (IOException | ClassNotFoundException e) {
             System.err.println("Error establishing server socket: " + e.getMessage());
         }
-
     }
 
     private int getPortForTaskType(TaskType taskType) {
@@ -84,7 +80,15 @@ public class SlaveListener implements Runnable {
      */
     void HandleCommunication(Object object) {
         if (object instanceof Task task) {
-            TaskNotifierMap.get(task).TasksToNotify.add(task);
+            // Identify the client notifier to assign the completed task
+            ClientNotifier clientNotifier = TaskNotifierMap.get(task);
+
+            if(clientNotifier == null) {
+                System.err.println("ClientNotifier not found for task: " + task.taskID + " from client: " + task.clientID);
+                return;
+            }
+
+            clientNotifier.completedTasks.add(task);
             System.out.println("Received task: " + task.taskID + " from slave");
         } else {
             System.out.println("Received object of unknown type " + object);

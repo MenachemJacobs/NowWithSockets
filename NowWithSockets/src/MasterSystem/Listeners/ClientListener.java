@@ -35,16 +35,16 @@ public class ClientListener implements Runnable {
     String connectionMessage = "Connection made with client";
 
     /**
+     * A map that associates each task with the corresponding clientNotifier
+     * socket to enable future communication.
+     */
+    Map<Task, ClientNotifier> taskNotifierMap;
+
+    /**
      * A blocking queue that holds tasks received from clients
      * that are waiting to be dispatched to slave servers.
      */
     BlockingQueue<Task> uncompletedTasks = new LinkedBlockingQueue<>();
-
-    /**
-     * A map that associates each task with the corresponding client
-     * socket to enable future communication.
-     */
-    Map<Task, ClientNotifier> taskNotifierMap;
 
     ExecutorService clientProcessExecutor = Executors.newFixedThreadPool(2);
 
@@ -58,6 +58,7 @@ public class ClientListener implements Runnable {
         // Initialize and start the dispatcher for uncompleted tasks
         SlaveDispatch dispatch = new SlaveDispatch(uncompletedTasks);
         clientProcessExecutor.execute(dispatch);
+
         myNotifier = new ClientNotifier(clientSocket);
         clientProcessExecutor.execute(myNotifier);
     }
@@ -93,8 +94,10 @@ public class ClientListener implements Runnable {
     void HandleCommunication(Object object) {
         if (object instanceof Task task) {
             System.out.println("Received task: " + task.taskID + " from client " + task.clientID);
-            uncompletedTasks.add(task);
+
+            // The order here is important, log tasks before letting anyone work on them!
             taskNotifierMap.put(task, myNotifier);
+            uncompletedTasks.add(task);
         } else {
             System.out.println("Received Object of unknown type: " + object);
         }
