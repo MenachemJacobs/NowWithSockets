@@ -26,16 +26,17 @@ public class MasterNotifier implements Runnable {
      * A blocking queue that holds completed tasks to be notified to the master.
      */
     BlockingQueue<Task> CompletedTasks;
-    Socket slaveListener;
+    int slaveListenerPortNum;
+    Socket slaveListener = null;
 
     /**
      * Constructs a MasterNotifier instance with the specified blocking queue.
      *
      * @param CompletedTasks the blocking queue containing completed tasks.
      */
-    MasterNotifier(Socket slaveListener, BlockingQueue<Task> CompletedTasks) {
+    MasterNotifier(int slaveListenerPortNum, BlockingQueue<Task> CompletedTasks) {
         this.CompletedTasks = CompletedTasks;
-        this.slaveListener = slaveListener;
+        this.slaveListenerPortNum = slaveListenerPortNum;
     }
 
     /**
@@ -64,13 +65,22 @@ public class MasterNotifier implements Runnable {
      * @param task the completed task to be sent to the master server.
      */
     private void messageMaster(Task task) {
+        if (slaveListener == null) {
+            try {
+                slaveListener = new Socket("localhost", slaveListenerPortNum);
+            } catch (IOException e) {
+                System.err.println("Error connecting to master: " + e.getMessage());
+                return;
+            }
+        }
+
         try (ObjectOutputStream outStream = new ObjectOutputStream(slaveListener.getOutputStream())) {
             // Sends the completed task object to the master server
             outStream.writeObject(task);
             outStream.flush();
             System.out.println("Sent task " + task.taskID + " to slaveListener");
-        } catch (IOException ignored) {
-            // Log ignored or handle the exception as necessary
+        } catch (IOException e) {
+            System.err.println("Error sending task to master: " + e.getMessage());
         }
     }
 }

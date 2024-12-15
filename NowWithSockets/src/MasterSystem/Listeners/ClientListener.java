@@ -9,6 +9,8 @@ import java.io.ObjectInputStream;
 import java.net.Socket;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
@@ -44,10 +46,7 @@ public class ClientListener implements Runnable {
      */
     Map<Task, ClientNotifier> taskNotifierMap;
 
-    /**
-     * The dispatcher responsible for sending tasks to slave servers.
-     */
-    SlaveDispatch dispatcher;
+    ExecutorService clientProcessExecutor = Executors.newFixedThreadPool(2);
 
     Socket clientSocket;
     ClientNotifier myNotifier;
@@ -57,10 +56,10 @@ public class ClientListener implements Runnable {
         this.taskNotifierMap = taskNotifierMap;
 
         // Initialize and start the dispatcher for uncompleted tasks
-        dispatcher = new SlaveDispatch(uncompletedTasks);
-        new Thread(dispatcher).start();
+        SlaveDispatch dispatch = new SlaveDispatch(uncompletedTasks);
+        clientProcessExecutor.execute(dispatch);
         myNotifier = new ClientNotifier(clientSocket);
-        new Thread(myNotifier).start();
+        clientProcessExecutor.execute(myNotifier);
     }
 
     /**
@@ -105,9 +104,12 @@ public class ClientListener implements Runnable {
         try {
             if (clientSocket != null && !clientSocket.isClosed())
                 clientSocket.close();
-
         } catch (IOException e) {
             System.err.println("Error closing client socket: " + e.getMessage());
         }
+
+        // Remove the ClientNotifier from the TaskNotifierMap
+        taskNotifierMap.values().removeIf(notifier -> notifier == myNotifier);
+        clientProcessExecutor.shutdown();
     }
 }

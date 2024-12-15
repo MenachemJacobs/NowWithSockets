@@ -15,6 +15,7 @@ public class SlaveSocketManager {
                 Socket socket = new Socket("localhost", port);
                 slaveSockets.put(port, socket);
                 socketSemaphores.put(port, new Semaphore(1));
+
                 System.out.println("Connected to slave on port: " + port);
                 break; // Exit the loop once the connection is successful
             } catch (IOException e) {

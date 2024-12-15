@@ -67,9 +67,9 @@ public class SlaveListener implements Runnable {
     private int getPortForTaskType(TaskType taskType) {
         // Return the appropriate port number based on the task type
         if (taskType == TaskType.A) {
-            return PortNumbers.ASlavePort;
+            return PortNumbers.ASlaveListenerPort;
         } else if (taskType == TaskType.B) {
-            return PortNumbers.BSlavePort;
+            return PortNumbers.BSlaveListenerPort;
         }
         throw new IllegalArgumentException("Unknown task type: " + taskType);
     }

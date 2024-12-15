@@ -66,12 +66,7 @@ public class ASlave {
         int portNumber = PortNumbers.ASlavePort;
         String connectionMessage = "Slave A receiving a task";
 
-        try {
-            Socket slaveListener = new Socket("localhost", PortNumbers.ASlaveListenerPort);
-            masterNotifier = new MasterNotifier(slaveListener, Done);
-        } catch (IOException e) {
-            System.err.println("Error connecting to master: " + e.getMessage());
-        }
+        masterNotifier = new MasterNotifier(PortNumbers.ASlaveListenerPort, Done);
 
         // Start threads for processing tasks and notifying the master
         new Thread(myWorker).start();

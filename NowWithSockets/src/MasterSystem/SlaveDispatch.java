@@ -32,13 +32,14 @@ public class SlaveDispatch implements Runnable {
      * A blocking queue that holds tasks waiting to be assigned
      * to slave servers for processing.
      */
-    BlockingQueue<Task> ToAssign;
+    BlockingQueue<Task> uncompletedTasks;
 
     static final AtomicInteger ASlaveTime = new AtomicInteger(0);
     static final AtomicInteger BSlaveTime = new AtomicInteger(0);
     static final int EFFICIENT_TIME = 2;
     static final int INEFFICIENT_TIME = 10;
     static final int TIME_THRESHOLD = 8;
+
     private volatile boolean running = true;
 
     /**
@@ -48,7 +49,7 @@ public class SlaveDispatch implements Runnable {
      *                            that are waiting to be assigned to slaves.
      */
     public SlaveDispatch(BlockingQueue<Task> UnassignedTaskQueue) {
-        ToAssign = UnassignedTaskQueue;
+        uncompletedTasks = UnassignedTaskQueue;
     }
 
     /**
@@ -57,13 +58,14 @@ public class SlaveDispatch implements Runnable {
      * for unassigned tasks to become available. When a task is
      * retrieved, it is sent to the appropriate slave server.
      */
+    @Override
     public void run() {
         Task uncompletedTask;
 
         while (running) {
             try {
                 // Wait for an unassigned task to become available
-                uncompletedTask = ToAssign.take();
+                uncompletedTask = uncompletedTasks.take();
                 sendTaskToSlave(uncompletedTask);
             } catch (InterruptedException e) {
                 if (!running) break;
@@ -137,5 +139,10 @@ public class SlaveDispatch implements Runnable {
                 if (retries == 0) System.err.println("Task failed after 3 retries: " + task.taskID);
             }
         }
+    }
+
+    public void shutdown() {
+        running = false;
+        Thread.currentThread().interrupt();
     }
 }
