@@ -1,6 +1,7 @@
 package Components;
 
 import java.io.Serializable;
+import java.util.Objects;
 
 public class Task implements Serializable{
     public int taskID;
@@ -31,6 +32,21 @@ public class Task implements Serializable{
     @Override
     public String toString() {
         return "ClientID: " + clientID + " TaskID: " + taskID + " TaskType: " + taskType + "  isComplete: " + isComplete;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Task task = (Task) o;
+        return taskID == task.taskID &&
+                clientID == task.clientID &&
+                taskType == task.taskType;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(taskID, clientID, taskType);
     }
 }
 

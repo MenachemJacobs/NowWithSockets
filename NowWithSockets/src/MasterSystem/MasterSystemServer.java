@@ -2,128 +2,97 @@ package MasterSystem;
 
 import Components.PortNumbers;
 import Components.Task;
-import Components.TaskSocketPair;
+import Components.TaskType;
+import MasterSystem.Listeners.ClientListener;
+import MasterSystem.Listeners.SlaveListener;
 
 import java.io.IOException;
-import java.io.ObjectInputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Map;
-import java.util.Queue;
 import java.util.concurrent.*;
 
+/**
+ * The MasterSystemServer class manages client connections and task delegation
+ * between clients and slave listeners. It serves as the central server for
+ * handling task submissions and processing in a distributed system.
+ */
 public class MasterSystemServer {
-    static int portNumber = PortNumbers.MasterServerPort;
-    Map<Task, Socket> clientMap = new ConcurrentHashMap<>();
-    ExecutorService executorService = Executors.newFixedThreadPool(2);
+    /**
+     * An executor service for handling client connections and tasks asynchronously.
+     */
+    ExecutorService clientExecutor = Executors.newCachedThreadPool();
 
-    // Futures to track the running tasks
-    Future<?> replyTaskFuture = null;
-    Future<?> dispatchTaskFuture = null;
+    /**
+     * An executor service with a fixed number of threads for managing slave listeners.
+     */
+    ExecutorService slaveExecutor = Executors.newFixedThreadPool(2);
 
-    ClientsNotifier Replier;
-    Queue<Task> finishedTasks = new ConcurrentLinkedQueue<>();
+    /**
+     * A flag to indicate whether the server is running. It is used to control
+     * the server's main loop and safely shut down the server.
+     */
+    private volatile static Boolean isRunning = true;
 
-    TasksToSlavesBroadcaster Dispatcher;
-    Queue<TaskSocketPair> tasksToDispatch = new ConcurrentLinkedQueue<>();
+    /**
+     * A map that associates each task with its corresponding client socket.
+     * This allows the server to track which client submitted each task
+     * for later notification upon task completion.
+     */
+    Map<Task, ClientNotifier> TaskNotifierMap = new ConcurrentHashMap<>();
 
-    MasterSystemServer() {
-        Replier = new ClientsNotifier(finishedTasks, clientMap);
-        Dispatcher = new TasksToSlavesBroadcaster(tasksToDispatch, clientMap);
-    }
+    /**
+     * Constructs a new MasterSystemServer instance. This constructor initializes
+     * the client and slave listeners and starts them in separate threads.
+     *
+     * <p>
+     * - Listens for incoming client connections on a predefined port. <br>
+     * - Delegates task handling to slave listeners based on task type. <br>
+     * - Manages the lifecycle of the server and thread pools.
+     * </p>
+     */
+    public MasterSystemServer() {
+        // TODO: Get SocketManagerWorking
+        //SlaveSocketManager.addSlaveSocket(PortNumbers.ASlavePort);
+        //SlaveSocketManager.addSlaveSocket(PortNumbers.BSlavePort);
 
-    private void addShutdownHook() {
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("Shutting down the server...");
-            executorService.shutdown();
-            try {
-                if (!executorService.awaitTermination(10, TimeUnit.SECONDS)) {
-                    System.err.println("Forcing executor shutdown...");
-                    executorService.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                executorService.shutdownNow();
-                Thread.currentThread().interrupt();
-            }
-        }));
-    }
+        slaveExecutor.execute(new SlaveListener(TaskType.A, TaskNotifierMap, isRunning));
+        slaveExecutor.execute(new SlaveListener(TaskType.B, TaskNotifierMap, isRunning));
 
-    public static void main(String[] args) {
-        MasterSystemServer masterSystem = new MasterSystemServer();
-        masterSystem.addShutdownHook();
-        masterSystem.startServer();
-    }
+        try (ServerSocket serverSocket = new ServerSocket(PortNumbers.MasterClientPort)) {
+            System.out.println("MasterSystemServer is running...");
 
-    private void startServer() {
-        try (ServerSocket serverSocket = new ServerSocket(portNumber)) {
-            System.out.println("System listening on port: " + portNumber);
-
-            while (true) {
-                Socket socket = serverSocket.accept();
-                System.out.println("Connection accepted");
-
-                // Read the object directly in the startServer method
-                Object obj;
-                try (ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream())) {
-                    obj = objectInputStream.readObject();
-                } catch (IOException | ClassNotFoundException e) {
-                    System.err.println("Error reading task: " + e.getMessage());
-                    continue; // Go to the next iteration if there is an error
-                }
-
-                // Check if the object is an instance of Task
-                if (obj instanceof Task task) { // Using instanceof with pattern matching (Java 16+)
-                    handleTask(socket, task);
-                } else {
-                    System.out.println("Received an invalid object type. Ignoring.");
-                }
+            while (isRunning) {
+                Socket clientSocket = serverSocket.accept();
+                System.out.println("New client connected: " + clientSocket.getInetAddress());
+                clientExecutor.execute(new ClientListener(clientSocket, TaskNotifierMap, isRunning));
             }
         } catch (IOException e) {
-            System.err.println("Error reading task: " + e.getMessage());
+            System.err.println("Server exception: " + e.getMessage());
+        } finally {
+            clientExecutor.shutdown();
+            slaveExecutor.shutdown();
         }
     }
 
-    void handleTask(Socket socket, Task task) {
-        executorService.submit(() -> {
-            if (!task.isComplete) {
-                System.out.println("Task " + task.taskID + " incomplete");
-                handleIncompleteTask(task, socket);
-            } else {
-                System.out.println("Task " + task.taskID + " complete");
-                handleCompleteTask(task);
-            }
-        });
-    }
+    /**
+     * The entry point for the MasterSystemServer application.
+     *
+     * <p>
+     * This method creates an instance of MasterSystemServer, effectively starting
+     * the server and its listening functionalities. A shutdown hook is added to
+     * ensure proper cleanup and termination of server resources upon application exit.
+     * </p>
+     *
+     * @param args Command line arguments (not used in this implementation).
+     */
+    public static void main(String[] args) {
+        new MasterSystemServer();
 
-    void handleIncompleteTask(Task task, Socket socket) {
-        tasksToDispatch.add(new TaskSocketPair(task, socket));
-        if (dispatchTaskFuture == null || dispatchTaskFuture.isDone()) {
-            System.out.println("Dispatching task: " + task);
-            dispatchTaskFuture = executorService.submit(() -> {
-                try {
-                    Dispatcher.run();
-                } catch (Exception e) {
-                    System.err.println("Dispatcher error: " + e.getMessage());
-                } finally {
-                    dispatchTaskFuture = null;  // Allow re-execution if necessary
-                }
-            });
-        }
-    }
-
-    void handleCompleteTask(Task task) {
-        finishedTasks.add(task);
-        if (replyTaskFuture == null || replyTaskFuture.isDone()) {
-            System.out.println("Replying task: " + task);
-            replyTaskFuture = executorService.submit(() -> {
-                try {
-                    Replier.run();
-                } catch (Exception e) {
-                    System.err.println("Replier error: " + e.getMessage());
-                } finally {
-                    replyTaskFuture = null;  // Allow re-execution if necessary
-                }
-            });
-        }
+        // Add shutdown hook
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("Shutdown hook triggered. Stopping servers...");
+            isRunning = false;
+        }));
     }
 }
