@@ -47,19 +47,19 @@ public class Client {
     }
 
     void listenForInput() {
-        try (Scanner scanner = new Scanner(System.in)) {
-            System.out.println("Press 'a' for TaskType.A, 'b' for TaskType.B, or any other key for help.");
+        Scanner scanner = new Scanner(System.in);
 
-            while (true) {
-                String input = scanner.nextLine().trim();;
-                if (input.equalsIgnoreCase("a")) {
-                    dispatchTask(TaskType.A);
-                } else if (input.equalsIgnoreCase("b")) {
-                    dispatchTask(TaskType.B);
-                } else {
-                    System.out.println("Invalid input. Please press 'a' for TaskType.A or 'b' for TaskType.B.");
-                    scanner.nextLine();
-                }
+        while (true) {
+            System.out.println("Press 'a' for TaskType.A, 'b' for TaskType.B, or any other key for help.");
+            String input = scanner.nextLine().trim();
+
+            if (input.equalsIgnoreCase("a")) {
+                dispatchTask(TaskType.A);
+            } else if (input.equalsIgnoreCase("b")) {
+                dispatchTask(TaskType.B);
+            } else {
+                System.out.println("Invalid input. Please press 'a' for TaskType.A or 'b' for TaskType.B.");
+                scanner.nextLine();
             }
         }
     }

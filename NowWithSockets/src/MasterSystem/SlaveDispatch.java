@@ -1,6 +1,5 @@
 package MasterSystem;
 
-import Components.SlaveSocketManager;
 import Components.Task;
 import Components.TaskType;
 
@@ -40,7 +39,7 @@ public class SlaveDispatch implements Runnable {
     static final int INEFFICIENT_TIME = 10;
     static final int TIME_THRESHOLD = 8;
 
-    private volatile boolean running = true;
+    private volatile Boolean running = true;
 
     /**
      * Constructs a new TasksToSlavesBroadcaster instance.
@@ -93,6 +92,7 @@ public class SlaveDispatch implements Runnable {
         int portNumber;
 
         synchronized (SlaveDispatch.class) {
+            // TODO implement count down
             // Determine which slave to send the task to based on task type and current workload
             if (task.taskType == TaskType.A) {
                 if (ASlaveTime.get() > BSlaveTime.get() + TIME_THRESHOLD) {

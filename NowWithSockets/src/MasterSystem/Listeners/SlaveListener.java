@@ -30,10 +30,12 @@ public class SlaveListener implements Runnable {
     String connectionMessage = "Connection made with client";
     private final TaskType taskType;
     private final Map<Task, ClientNotifier> TaskNotifierMap;
+    private volatile boolean isRunning;
 
-    public SlaveListener(TaskType myType, Map<Task, ClientNotifier> TaskNotifierMap) {
+    public SlaveListener(TaskType myType, Map<Task, ClientNotifier> TaskNotifierMap, Boolean isRunning) {
         this.TaskNotifierMap = TaskNotifierMap;
         taskType = myType;
+        this.isRunning = isRunning;
     }
 
     /**
@@ -44,19 +46,39 @@ public class SlaveListener implements Runnable {
      */
     @Override
     public void run() {
-        try (ServerSocket serverSocket = new ServerSocket(getPortForTaskType(taskType));
-             Socket slaveSocket = serverSocket.accept();
-             ObjectInputStream inputStream = new ObjectInputStream(slaveSocket.getInputStream())
-        ) {
+        ServerSocket serverSocket;
+        Socket slaveSocket;
+        ObjectInputStream inputStream = null;
 
-            while (true) {
-                // Process tasks from the slave socket
-                Object receivedObject = inputStream.readObject();
-                HandleCommunication(receivedObject);
+        try {
+            serverSocket = new ServerSocket(getPortForTaskType(taskType));
+            slaveSocket = serverSocket.accept();
+
+            if (serverSocket.isClosed() || slaveSocket.isClosed()) {
+                System.err.println("Server or slave socket is closed");
+                return;
             }
 
-        } catch (IOException | ClassNotFoundException e) {
-            System.err.println("Error establishing server socket: " + e.getMessage());
+            while (isRunning) {
+                if (inputStream == null)
+                    inputStream = new ObjectInputStream(slaveSocket.getInputStream());
+
+                try {
+                    // Process tasks from the slave socket
+                    Object receivedObject = inputStream.readObject();
+                    HandleCommunication(receivedObject);
+                } catch (IOException | ClassNotFoundException e) {
+                    System.err.println("Error reading from input stream: " + e.getMessage());
+                    inputStream = null; // Reset the input stream to refresh it
+                }
+            }
+
+            inputStream.close();
+            slaveSocket.close();
+            serverSocket.close();
+
+        } catch (IOException e) {
+            System.err.println("Error establishing server socket: " + e.getMessage() + " in Slave Listener");
         }
     }
 
@@ -83,7 +105,7 @@ public class SlaveListener implements Runnable {
             // Identify the client notifier to assign the completed task
             ClientNotifier clientNotifier = TaskNotifierMap.get(task);
 
-            if(clientNotifier == null) {
+            if (clientNotifier == null) {
                 System.err.println("ClientNotifier not found for task: " + task.taskID + " from client: " + task.clientID);
                 return;
             }

@@ -23,12 +23,19 @@ import java.util.concurrent.LinkedBlockingQueue;
  * it notifies the master server of the task's completion.
  * </p>
  */
-public class ASlave {
+public class SlaveServer implements Runnable {
+
+    private static volatile boolean isRunning = true;
 
     /**
      * A blocking queue that holds tasks that need to be processed.
      */
     BlockingQueue<Task> UncompletedTasks = new LinkedBlockingQueue<>();
+    TaskType myType;
+
+    private SlaveServer(TaskType taskType) {
+        myType = taskType;
+    }
 
     /**
      * The main entry point for the ASlave application. This method
@@ -37,8 +44,16 @@ public class ASlave {
      * @param args command line arguments (not used).
      */
     public static void main(String[] args) {
-        ASlave aSlave = new ASlave();
-        aSlave.StartServer();
+        SlaveServer aSlave = new SlaveServer(TaskType.A);
+        SlaveServer bSlave = new SlaveServer(TaskType.B);
+        new Thread(aSlave).start();
+        new Thread(bSlave).start();
+
+        // Add shutdown hook
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("Shutdown hook triggered. Stopping servers...");
+            isRunning = false;
+        }));
     }
 
     /**
@@ -47,23 +62,26 @@ public class ASlave {
      * in separate threads. The server listens indefinitely for tasks
      * from clients and handles incoming connections.
      */
-    void StartServer() {
-        int portNumber = PortNumbers.ASlavePort;
-        String connectionMessage = "Slave A connected to Master System";
+    public void run() {
+        int portNumber = myType == TaskType.A ? PortNumbers.ASlavePort : PortNumbers.BSlavePort;
+        int listenerPort = myType == TaskType.A ? PortNumbers.ASlaveListenerPort : PortNumbers.BSlaveListenerPort;
 
         BlockingQueue<Task> CompletedTasks = new LinkedBlockingQueue<>();
-        TaskProcessor myWorker = new TaskProcessor(TaskType.A, UncompletedTasks, CompletedTasks);
-        MasterNotifier masterNotifier = new MasterNotifier(PortNumbers.ASlaveListenerPort, CompletedTasks);
+        TaskProcessor myWorker = new TaskProcessor(myType, UncompletedTasks, CompletedTasks);
+        MasterNotifier masterNotifier = new MasterNotifier(listenerPort, CompletedTasks);
 
         // Start threads for processing tasks and notifying the master
         new Thread(myWorker).start();
         new Thread(masterNotifier).start();
 
+        ServerSocket serverSocket;
+
         // Create a server socket to listen for incoming tasks
-        try (ServerSocket serverSocket = new ServerSocket(portNumber)) {
+        try  {
+            serverSocket = new ServerSocket(portNumber);
             System.out.println("System listening on port: " + portNumber);
 
-            while (true) {
+            while (isRunning) {
                 try {
                     // Accept incoming client connection
                     Socket clientSocket = serverSocket.accept();
@@ -77,6 +95,8 @@ public class ASlave {
                     Thread.sleep(1000);
                 }
             }
+
+            serverSocket.close();
         } catch (IOException | InterruptedException e) {
             System.err.println("Server socket error: " + e.getMessage());
         }
@@ -84,6 +104,8 @@ public class ASlave {
 
     private void processIncomingTasks(Socket clientSocket) {
         ObjectInputStream inputStream;
+        String connectionMessage = myType == TaskType.A ? "Slave A received task: "
+                : "Slave B received task: ";
 
         try {
             inputStream = new ObjectInputStream(clientSocket.getInputStream());
@@ -94,7 +116,7 @@ public class ASlave {
         try {
             Object obj = inputStream.readObject();
             if (obj instanceof Task task) {
-                System.out.println("ASlave received task: " + task.taskID);
+                System.out.println(connectionMessage + task.taskID);
                 UncompletedTasks.put(task);  // Add the task to the UncompletedTasks queue
             }
             clientSocket.close();  // Close the connection after receiving the task

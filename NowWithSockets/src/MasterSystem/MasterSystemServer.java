@@ -1,7 +1,6 @@
 package MasterSystem;
 
 import Components.PortNumbers;
-import Components.SlaveSocketManager;
 import Components.Task;
 import Components.TaskType;
 import MasterSystem.Listeners.ClientListener;
@@ -40,6 +39,7 @@ import java.util.concurrent.*;
 public class MasterSystemServer {
     ExecutorService clientExecutor = Executors.newCachedThreadPool();
     ExecutorService slaveExecutor = Executors.newFixedThreadPool(2);
+    private volatile static Boolean isRunning = true;
 
     /**
      * A map that associates each task with its corresponding client socket.
@@ -58,13 +58,13 @@ public class MasterSystemServer {
         //SlaveSocketManager.addSlaveSocket(PortNumbers.ASlavePort);
         //SlaveSocketManager.addSlaveSocket(PortNumbers.BSlavePort);
 
-        slaveExecutor.execute(new SlaveListener(TaskType.A, TaskNotifierMap));
-        slaveExecutor.execute(new SlaveListener(TaskType.B, TaskNotifierMap));
+        slaveExecutor.execute(new SlaveListener(TaskType.A, TaskNotifierMap, isRunning));
+        slaveExecutor.execute(new SlaveListener(TaskType.B, TaskNotifierMap, isRunning));
 
         try (ServerSocket serverSocket = new ServerSocket(PortNumbers.MasterClientPort)) {
             System.out.println("MasterSystemServer is running...");
 
-            while (true) {
+            while (isRunning) {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("New client connected: " + clientSocket.getInetAddress());
                 clientExecutor.execute(new ClientListener(clientSocket, TaskNotifierMap));
@@ -86,5 +86,11 @@ public class MasterSystemServer {
      */
     public static void main(String[] args) {
         new MasterSystemServer();
+
+        // Add shutdown hook
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("Shutdown hook triggered. Stopping servers...");
+            isRunning = false;
+        }));
     }
 }

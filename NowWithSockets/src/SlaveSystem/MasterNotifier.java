@@ -28,6 +28,7 @@ public class MasterNotifier implements Runnable {
     BlockingQueue<Task> CompletedTasks;
     int slaveListenerPortNum;
     Socket slaveListener = null;
+    ObjectOutputStream outStream = null;
 
     /**
      * Constructs a MasterNotifier instance with the specified blocking queue.
@@ -65,8 +66,6 @@ public class MasterNotifier implements Runnable {
      * @param task the completed task to be sent to the master server.
      */
     private void messageMaster(Task task) {
-        ObjectOutputStream outStream;
-
         if (slaveListener == null) {
             try {
                 slaveListener = new Socket("localhost", slaveListenerPortNum);
@@ -76,10 +75,12 @@ public class MasterNotifier implements Runnable {
             }
         }
 
-        try {
-            outStream = new ObjectOutputStream(slaveListener.getOutputStream());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        if(outStream == null) {
+            try {
+                outStream = new ObjectOutputStream(slaveListener.getOutputStream());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         try {

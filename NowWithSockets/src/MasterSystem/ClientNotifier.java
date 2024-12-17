@@ -33,6 +33,7 @@ public class ClientNotifier implements Runnable {
      * notified to the respective clients.
      */
     public BlockingQueue<Task> completedTasks;
+    ObjectOutputStream outStream = null;
 
     Socket myClient;
 
@@ -50,17 +51,25 @@ public class ClientNotifier implements Runnable {
     public void run() {
         Task completedTask;
 
+        try {
+            outStream = new ObjectOutputStream(myClient.getOutputStream());
+        } catch (IOException e) {
+            System.err.println("Error creating output stream: " + e.getMessage());
+            return;
+        }
+
         while (true) {
             try {
                 // Wait for a completed task to become available
                 completedTask = completedTasks.take();
             } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+                System.err.println("Thread interrupted: " + e.getMessage());
+                return;
             }
 
             // Notify the client if the socket is valid
             if (myClient != null && !myClient.isClosed()) {
-                notifyClient(myClient, completedTask);
+                notifyClient(outStream, completedTask);
                 System.out.println("Client " + completedTask.clientID + " alerted to completion of task " +
                         completedTask.taskID);
             } else {
@@ -71,18 +80,15 @@ public class ClientNotifier implements Runnable {
 
     /**
      * Sends the completed task back to the client through the specified
-     * socket. This method creates an ObjectOutputStream to write the
-     * task object and flushes the stream to ensure the data is sent.
+     * ObjectOutputStream. This method writes the task object and flushes
+     * the stream to ensure the data is sent.
      *
-     * @param client        the socket connected to the client that will receive
+     * @param outStream     the ObjectOutputStream connected to the client that will receive
      *                      the completed task notification.
      * @param completedTask the completed task object to be sent to the client.
      */
-    void notifyClient(Socket client, Task completedTask) {
-        ObjectOutputStream outStream;
-
+    void notifyClient(ObjectOutputStream outStream, Task completedTask) {
         try {
-            outStream = new ObjectOutputStream(client.getOutputStream());
             outStream.writeObject(completedTask);
             outStream.flush();
             System.out.println("Sent task back to client: " + completedTask.clientID);
