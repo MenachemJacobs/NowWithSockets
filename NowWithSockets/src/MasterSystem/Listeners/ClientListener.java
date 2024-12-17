@@ -14,46 +14,61 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
- * The ClientListener class is responsible for handling connections
- * from clients and receiving tasks to be processed. It listens on
- * a designated port for incoming client connections and forwards
- * received tasks to the TasksToSlavesBroadcaster for distribution
- * to slave servers.
+ * The ClientListener class is responsible for managing the interaction with a connected client.
+ * It receives tasks from the client, processes them, and forwards them to be dispatched to slave servers.
  *
  * <p>
- * This class implements the Runnable interface, allowing it to
- * run in its own thread. Upon receiving a task from a client, it
- * stores the task in a blocking queue and maps the task to the
- * client's socket for future communication.
+ * This class implements the {@link Runnable} interface, allowing it to run in its own thread.
+ * It listens for objects sent from the client, verifies that they are tasks, and adds them to
+ * a task queue for further processing.
  * </p>
  */
 public class ClientListener implements Runnable {
 
-    /**
-     * Message indicating a successful connection with a client.
-     */
-    String connectionMessage = "Connection made with client";
+    private volatile static Boolean isRunning = null;
 
     /**
-     * A map that associates each task with the corresponding clientNotifier
-     * socket to enable future communication.
+     * A map that links each {@link Task} with its corresponding {@link ClientNotifier},
+     * enabling communication with the client that submitted the task.
      */
     Map<Task, ClientNotifier> taskNotifierMap;
 
     /**
-     * A blocking queue that holds tasks received from clients
-     * that are waiting to be dispatched to slave servers.
+     * A blocking queue containing tasks received from clients that are yet to be processed
+     * or dispatched to slave servers.
      */
     BlockingQueue<Task> uncompletedTasks = new LinkedBlockingQueue<>();
 
+    /**
+     * An executor service for managing threads that handle task dispatch and client notifications.
+     */
     ExecutorService clientProcessExecutor = Executors.newFixedThreadPool(2);
 
+    /**
+     * The socket associated with the connected client.
+     */
     Socket clientSocket;
+
+    /**
+     * The notifier responsible for communicating with the client.
+     */
     ClientNotifier myNotifier;
 
-    public ClientListener(Socket clientSocket, Map<Task, ClientNotifier> taskNotifierMap) {
+    /**
+     * Constructs a ClientListener instance for a connected client.
+     *
+     * <p>
+     * This constructor initializes the blocking queue, task notifier map, and starts the
+     * {@link SlaveDispatch} and {@link ClientNotifier} threads.
+     * </p>
+     *
+     * @param clientSocket the socket connected to the client.
+     * @param taskNotifierMap a map linking tasks to their corresponding client notifiers.
+     */
+    public ClientListener(Socket clientSocket, Map<Task, ClientNotifier> taskNotifierMap, Boolean isRunning) {
         this.clientSocket = clientSocket;
         this.taskNotifierMap = taskNotifierMap;
+        if(ClientListener.isRunning == null) ClientListener.isRunning = isRunning;
 
         // Initialize and start the dispatcher for uncompleted tasks
         SlaveDispatch dispatch = new SlaveDispatch(uncompletedTasks);
@@ -64,10 +79,13 @@ public class ClientListener implements Runnable {
     }
 
     /**
-     * The main execution method for the ClientListener. This method
-     * runs in a separate thread and continuously listens for incoming
-     * client connections. When a connection is established, it reads
-     * the task object sent by the client and processes it.
+     * The main execution method for the ClientListener.
+     *
+     * <p>
+     * This method continuously listens for objects sent by the client. If a {@link Task}
+     * is received, it is processed and added to the task queue. If an error occurs or the
+     * client disconnects, the listener stops processing and performs cleanup.
+     * </p>
      */
     public void run() {
         ObjectInputStream ois;
@@ -81,7 +99,7 @@ public class ClientListener implements Runnable {
             throw new RuntimeException(e);
         }
 
-        while (true) {
+        while (isRunning) {
             if (clientSocket.isClosed()) {
                 System.err.println("Client socket is already closed, exiting loop.");
                 break;
@@ -100,14 +118,19 @@ public class ClientListener implements Runnable {
                 break; // Exit the loop on error
             }
         }
+
+        cleanup();
     }
 
     /**
-     * Processes incoming communication from a client. If the
-     * received object is a Task, it is added to the uncompleted
-     * tasks queue and mapped to the client's socket.
+     * Processes incoming communication from the client.
      *
-     * @param object the object received from the client, expected to be a Task.
+     * <p>
+     * If the received object is a {@link Task}, it is added to the {@code uncompletedTasks} queue
+     * and mapped to the client's socket in the {@code taskNotifierMap}.
+     * </p>
+     *
+     * @param object the object received from the client, expected to be a {@link Task}.
      */
     void HandleCommunication(Object object) {
         if (object instanceof Task task) {
@@ -121,6 +144,14 @@ public class ClientListener implements Runnable {
         }
     }
 
+    /**
+     * Cleans up resources associated with the client.
+     *
+     * <p>
+     * This method closes the client socket, removes the client's notifier
+     * from the {@code taskNotifierMap}, and shuts down the executor service.
+     * </p>
+     */
     private void cleanup() {
         try {
             if (clientSocket != null && !clientSocket.isClosed()) {

@@ -13,32 +13,25 @@ import java.util.Map;
 import java.util.concurrent.*;
 
 /**
- * The MasterSystemServer class represents the main server component
- * of the Master-Slave architecture. It is responsible for managing
- * communication between clients and slaves, including receiving tasks
- * from clients and dispatching them to slave workers.
- *
- * <p>
- * The MasterSystemServer initializes two key components:
- * <ul>
- *     <li>{@link ClientListener}: Listens for incoming connections from clients
- *     and handles task submissions.</li>
- *     <li>{@link SlaveListener}: Listens for incoming connections from slaves
- *     and manages the completion of tasks.</li>
- * </ul>
- * </p>
- *
- * <p>
- * This server runs both listeners in separate threads to handle
- * concurrent connections and ensure non-blocking operation.
- * </p>
- *
- * @see ClientListener
- * @see SlaveListener
+ * The MasterSystemServer class manages client connections and task delegation
+ * between clients and slave listeners. It serves as the central server for
+ * handling task submissions and processing in a distributed system.
  */
 public class MasterSystemServer {
+    /**
+     * An executor service for handling client connections and tasks asynchronously.
+     */
     ExecutorService clientExecutor = Executors.newCachedThreadPool();
+
+    /**
+     * An executor service with a fixed number of threads for managing slave listeners.
+     */
     ExecutorService slaveExecutor = Executors.newFixedThreadPool(2);
+
+    /**
+     * A flag to indicate whether the server is running. It is used to control
+     * the server's main loop and safely shut down the server.
+     */
     private volatile static Boolean isRunning = true;
 
     /**
@@ -51,8 +44,13 @@ public class MasterSystemServer {
     /**
      * Constructs a new MasterSystemServer instance. This constructor initializes
      * the client and slave listeners and starts them in separate threads.
+     *
+     * <p>
+     * - Listens for incoming client connections on a predefined port. <br>
+     * - Delegates task handling to slave listeners based on task type. <br>
+     * - Manages the lifecycle of the server and thread pools.
+     * </p>
      */
-    // TODO: Slaves needs their own thread set
     public MasterSystemServer() {
         // TODO: Get SocketManagerWorking
         //SlaveSocketManager.addSlaveSocket(PortNumbers.ASlavePort);
@@ -67,7 +65,7 @@ public class MasterSystemServer {
             while (isRunning) {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("New client connected: " + clientSocket.getInetAddress());
-                clientExecutor.execute(new ClientListener(clientSocket, TaskNotifierMap));
+                clientExecutor.execute(new ClientListener(clientSocket, TaskNotifierMap, isRunning));
             }
         } catch (IOException e) {
             System.err.println("Server exception: " + e.getMessage());
@@ -79,10 +77,14 @@ public class MasterSystemServer {
 
     /**
      * The entry point for the MasterSystemServer application.
-     * This method creates an instance of MasterSystemServer,
-     * effectively starting the server and its listening functionalities.
      *
-     * @param args command line arguments (not used).
+     * <p>
+     * This method creates an instance of MasterSystemServer, effectively starting
+     * the server and its listening functionalities. A shutdown hook is added to
+     * ensure proper cleanup and termination of server resources upon application exit.
+     * </p>
+     *
+     * @param args Command line arguments (not used in this implementation).
      */
     public static void main(String[] args) {
         new MasterSystemServer();

@@ -11,53 +11,68 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static Components.PortNumbers.*;
-import static java.lang.Math.min;
+import static java.lang.Math.max;
 
 /**
- * The TasksToSlavesBroadcaster class is responsible for distributing
- * tasks to slave servers based on their types and the current workload
- * of each slave. It manages the assignment of tasks to either Slave A
- * or Slave B, ensuring balanced processing times.
+ * The SlaveDispatch class is responsible for distributing tasks to slave servers
+ * in a balanced manner based on the task type and the current workload of each slave.
  *
  * <p>
- * This class implements the Runnable interface, allowing it to run
- * in its own thread. It continuously retrieves unassigned tasks from
- * a blocking queue and forwards them to the appropriate slave server
- * for processing.
+ * The class implements the {@link Runnable} interface, enabling it to run in a separate thread.
+ * It continuously retrieves unprocessed tasks from a {@link BlockingQueue} and forwards
+ * them to the most suitable slave server for execution.
+ * </p>
+ *
+ * <p>
+ * This class uses atomic counters to maintain thread-safe tracking of each slave server's
+ * current workload, ensuring efficient task assignment even in a multithreaded environment.
  * </p>
  */
 public class SlaveDispatch implements Runnable {
 
     /**
-     * A blocking queue that holds tasks waiting to be assigned
-     * to slave servers for processing.
+     * A blocking queue containing tasks waiting to be assigned to slave servers.
+     * Tasks are retrieved from this queue and dispatched to the appropriate slave.
      */
     BlockingQueue<Task> uncompletedTasks;
 
+    /**
+     * An atomic counter tracking the accumulated processing time for Slave A.
+     */
     static final AtomicInteger ASlaveTime = new AtomicInteger(0);
+
+    /**
+     * An atomic counter tracking the accumulated processing time for Slave B.
+     */
     static final AtomicInteger BSlaveTime = new AtomicInteger(0);
-    static final int EFFICIENT_TIME = 2;
-    static final int INEFFICIENT_TIME = 10;
-    static final int TIME_THRESHOLD = 8;
+
+    /**
+     * The timestamp of the last task assignment. Used to adjust workload times dynamically.
+     */
     private static final AtomicLong lastTimestamp = new AtomicLong(System.currentTimeMillis());
 
+    /**
+     * A flag indicating whether the dispatch thread is running. Used for graceful shutdown.
+     */
     private volatile Boolean running = true;
 
     /**
-     * Constructs a new TasksToSlavesBroadcaster instance.
+     * Constructs a new SlaveDispatch instance and assigns a task queue.
      *
-     * @param UnassignedTaskQueue the blocking queue containing tasks
-     *                            that are waiting to be assigned to slaves.
+     * @param UnassignedTaskQueue the blocking queue containing unprocessed tasks.
      */
     public SlaveDispatch(BlockingQueue<Task> UnassignedTaskQueue) {
         uncompletedTasks = UnassignedTaskQueue;
     }
 
     /**
-     * The main execution method for the TasksToSlavesBroadcaster.
-     * This method runs in a separate thread and continuously waits
-     * for unassigned tasks to become available. When a task is
-     * retrieved, it is sent to the appropriate slave server.
+     * The main execution method for the SlaveDispatch. This method runs in a separate thread,
+     * continuously polling the {@code uncompletedTasks} queue for tasks.
+     *
+     * <p>
+     * When a task becomes available, it is assigned to the appropriate slave server.
+     * If the thread is interrupted, it terminates gracefully.
+     * </p>
      */
     @Override
     public void run() {
@@ -78,25 +93,16 @@ public class SlaveDispatch implements Runnable {
     }
 
     /**
-     * Sends the specified task to the appropriate slave server based
-     * on the type of task and the current workload of each slave.
+     * Sends a task to the appropriate slave server based on its type and the current workload.
+     * This method attempts to establish a connection with the selected slave server
+     * and retries if the connection fails.
      *
-     * <p>
-     * This method updates the processing times for the slaves based
-     * on the task type and chooses the most suitable slave to handle
-     * the task. After sending the task, it adjusts the workload
-     * times of both slaves to reflect the task assignment.
-     * </p>
-     *
-     * @param task the task to be sent to the slave server for processing.
+     * @param task the {@link Task} to be sent to the slave server.
      */
     static void sendTaskToSlave(Task task) {
         int portNumber = chooseSlave(task.taskType);
 
-        // Adjust the processing times of the slaves after sending the task
-        int minTime = min(ASlaveTime.get(), BSlaveTime.get());
-        ASlaveTime.addAndGet(-minTime);
-        BSlaveTime.addAndGet(-minTime);
+        adjustProcessTime();
 
         int retries = 3;
 
@@ -123,38 +129,63 @@ public class SlaveDispatch implements Runnable {
         }
     }
 
+    /**
+     * Selects the most suitable slave server for the task based on its type and the workload.
+     * This method dynamically adjusts the processing time of each slave to account for current load.
+     *
+     * @param type the {@link TaskType} of the task being assigned.
+     * @return the port number of the chosen slave server.
+     */
     private static synchronized int chooseSlave(TaskType type) {
-        long currentTime = System.currentTimeMillis();
-        long elapsedTime = currentTime - lastTimestamp.getAndSet(currentTime);
+        // Processing times for each slave and task type
+        int aSlaveTypeATime = 2;   // A Slave takes 2 seconds for Type A tasks
+        int aSlaveTypeBTime = 10;  // A Slave takes 10 seconds for Type B tasks
+        int bSlaveTypeATime = 10;  // B Slave takes 10 seconds for Type A tasks
+        int bSlaveTypeBTime = 2;   // B Slave takes 2 seconds for Type B tasks
 
-        int portNumber;
+        // Current accumulated workload times
+        int aSlaveCurrentTime = ASlaveTime.get();
+        int bSlaveCurrentTime = BSlaveTime.get();
 
-        if(ASlaveTime.get() != 0) ASlaveTime.set((int) (ASlaveTime.get() - elapsedTime));
-        else if(BSlaveTime.get() != 0) BSlaveTime.set((int) (BSlaveTime.get() - elapsedTime));
+        // Determine processing time for each slave based on task type
+        int aSlaveExpectedTime = (type == TaskType.A) ?
+                aSlaveCurrentTime + aSlaveTypeATime :
+                aSlaveCurrentTime + aSlaveTypeBTime;
 
-        // TODO implement count down
-        // Determine which slave to send the task to based on task type and current workload
-        if (type == TaskType.A) {
-            if (ASlaveTime.get() > BSlaveTime.get() + TIME_THRESHOLD) {
-                portNumber = BSlavePort;
-                BSlaveTime.addAndGet(INEFFICIENT_TIME); // Increase workload for Slave B
-            } else {
-                portNumber = ASlavePort;
-                ASlaveTime.addAndGet(EFFICIENT_TIME); // Increase workload for Slave A
-            }
+        int bSlaveExpectedTime = (type == TaskType.A) ?
+                bSlaveCurrentTime + bSlaveTypeATime :
+                bSlaveCurrentTime + bSlaveTypeBTime;
+
+        // Choose the slave with the shortest expected completion time
+        if (aSlaveExpectedTime <= bSlaveExpectedTime) {
+            // Update A Slave time based on task type
+            ASlaveTime.addAndGet((type == TaskType.A) ? aSlaveTypeATime : aSlaveTypeBTime);
+            return ASlavePort;
         } else {
-            if (BSlaveTime.get() > ASlaveTime.get() + TIME_THRESHOLD) {
-                portNumber = ASlavePort;
-                ASlaveTime.addAndGet(INEFFICIENT_TIME); // Increase workload for Slave A
-            } else {
-                portNumber = BSlavePort;
-                BSlaveTime.addAndGet(EFFICIENT_TIME); // Increase workload for Slave B
-            }
+            // Update B Slave time based on task type
+            BSlaveTime.addAndGet((type == TaskType.A) ? bSlaveTypeATime : bSlaveTypeBTime);
+            return BSlavePort;
         }
-
-        return portNumber;
     }
 
+    /**
+     * Dynamically adjusts the workload times for both slaves based on the time
+     * elapsed since the last task assignment. This ensures that idle time
+     * reduces the perceived load of each slave.
+     */
+    private static void adjustProcessTime(){
+        int timeSinceLastTask = (int) (System.currentTimeMillis() - lastTimestamp.get());
+
+        ASlaveTime.set(max(0, ASlaveTime.get() - timeSinceLastTask));
+        BSlaveTime.set(max(0, BSlaveTime.get() - timeSinceLastTask));
+
+        lastTimestamp.set(System.currentTimeMillis());
+    }
+
+    /**
+     * Gracefully shuts down the dispatcher by setting the {@code running} flag to false
+     * and interrupting the current thread.
+     */
     public void shutdown() {
         running = false;
         Thread.currentThread().interrupt();
