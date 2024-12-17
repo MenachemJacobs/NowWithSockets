@@ -70,17 +70,35 @@ public class ClientListener implements Runnable {
      * the task object sent by the client and processes it.
      */
     public void run() {
-        try (ObjectInputStream ois = new ObjectInputStream(clientSocket.getInputStream())) {
-            while (true) {
+        ObjectInputStream ois;
+
+        if (clientSocket.isClosed()) System.err.println("Master System has closed the connection.");
+        else System.out.println("socket is open");
+
+        try {
+            ois = new ObjectInputStream(clientSocket.getInputStream());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        while (true) {
+            if (clientSocket.isClosed()) {
+                System.err.println("Client socket is already closed, exiting loop.");
+                break;
+            }
+
+            try {
                 Object received = ois.readObject();
-                if (received == null) break; // Exit if the client closes the connection
+                if (received == null) {
+                    System.err.println("Received null object, exiting loop.");
+                    break; // Exit if the client closes the connection
+                }
                 // Handle incoming task from the connected client
                 HandleCommunication(received);
+            } catch (IOException | ClassNotFoundException e) {
+                System.err.println("Error reading task: " + e.getMessage() + ". Something is clearly wrong with the ois");
+                break; // Exit the loop on error
             }
-        } catch (IOException | ClassNotFoundException e) {
-            System.err.println("Error reading task: " + e.getMessage());
-        } finally {
-            cleanup(); // Ensure proper cleanup
         }
     }
 
@@ -105,8 +123,9 @@ public class ClientListener implements Runnable {
 
     private void cleanup() {
         try {
-            if (clientSocket != null && !clientSocket.isClosed())
+            if (clientSocket != null && !clientSocket.isClosed()) {
                 clientSocket.close();
+            }
         } catch (IOException e) {
             System.err.println("Error closing client socket: " + e.getMessage());
         }

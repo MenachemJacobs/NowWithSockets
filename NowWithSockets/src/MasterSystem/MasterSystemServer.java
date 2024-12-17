@@ -54,8 +54,9 @@ public class MasterSystemServer {
      */
     // TODO: Slaves needs their own thread set
     public MasterSystemServer() {
-        SlaveSocketManager.addSlaveSocket(PortNumbers.ASlavePort);
-        SlaveSocketManager.addSlaveSocket(PortNumbers.BSlavePort);
+        // TODO: Get SocketManagerWorking
+        //SlaveSocketManager.addSlaveSocket(PortNumbers.ASlavePort);
+        //SlaveSocketManager.addSlaveSocket(PortNumbers.BSlavePort);
 
         slaveExecutor.execute(new SlaveListener(TaskType.A, TaskNotifierMap));
         slaveExecutor.execute(new SlaveListener(TaskType.B, TaskNotifierMap));

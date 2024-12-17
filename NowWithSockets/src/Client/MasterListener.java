@@ -11,22 +11,29 @@ public class MasterListener implements Runnable {
 
     public MasterListener(Socket masterSystemSocket) {
         this.masterSystemSocket = masterSystemSocket;
+        if (masterSystemSocket.isClosed()) System.err.println("Master System has closed the connection.");
+        else System.out.println("socket is open in the MasterListener constructor");
     }
 
     @Override
     public void run() {
-        try (ObjectInputStream inTask = new ObjectInputStream(masterSystemSocket.getInputStream())) {
-            while (true) {
-                // Wait for the server to send a response indicating task completion
+        if (masterSystemSocket.isClosed()) System.err.println("Master System has closed the connection.");
+        else System.out.println("socket is open in the MasterListener run method");
+
+        ObjectInputStream inTask;
+        try {
+            inTask = new ObjectInputStream(masterSystemSocket.getInputStream());
+
+            while (!masterSystemSocket.isClosed()) {
                 Object response = inTask.readObject();
-                if (response instanceof Task completedTask) {
+                if (response instanceof Task completedTask)
                     System.out.println("Task completed: " + completedTask.taskID + " of type: " + completedTask.taskType);
-                } else {
-                    System.out.println("Received unknown response from server.");
-                }
+                else System.out.println("Received unknown response from server.");
             }
         } catch (IOException | ClassNotFoundException e) {
             System.err.println("Error in client reading response: " + e.getMessage());
         }
+
+        if (masterSystemSocket.isClosed()) System.err.println("Master System has closed the connection.");
     }
 }

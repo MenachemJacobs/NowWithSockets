@@ -30,7 +30,6 @@ public class ASlave {
      */
     BlockingQueue<Task> UncompletedTasks = new LinkedBlockingQueue<>();
 
-
     /**
      * The main entry point for the ASlave application. This method
      * creates an instance of ASlave and starts the server.
@@ -50,7 +49,7 @@ public class ASlave {
      */
     void StartServer() {
         int portNumber = PortNumbers.ASlavePort;
-        String connectionMessage = "Slave A receiving a task";
+        String connectionMessage = "Slave A connected to Master System";
 
         BlockingQueue<Task> CompletedTasks = new LinkedBlockingQueue<>();
         TaskProcessor myWorker = new TaskProcessor(TaskType.A, UncompletedTasks, CompletedTasks);
@@ -60,35 +59,50 @@ public class ASlave {
         new Thread(myWorker).start();
         new Thread(masterNotifier).start();
 
+        // Create a server socket to listen for incoming tasks
         try (ServerSocket serverSocket = new ServerSocket(portNumber)) {
             System.out.println("System listening on port: " + portNumber);
 
             while (true) {
-                Socket socket = serverSocket.accept();
-                System.out.println(connectionMessage);
-                receiveTask(socket);
+                try {
+                    // Accept incoming client connection
+                    Socket clientSocket = serverSocket.accept();
+                    System.out.println("Accepted connection from " + clientSocket.getInetAddress());
+
+                    // Process tasks from this connection
+                    processIncomingTasks(clientSocket);
+                } catch (IOException e) {
+                    System.err.println("Error accepting connection: " + e.getMessage());
+                    // Wait a bit before trying to accept another connection
+                    Thread.sleep(1000);
+                }
             }
-        } catch (IOException e) {
-            System.err.println("Error reading task: " + e.getMessage());
+        } catch (IOException | InterruptedException e) {
+            System.err.println("Server socket error: " + e.getMessage());
         }
     }
 
-    /**
-     * Receives a task from a connected client through the provided socket.
-     * It reads the task object from the input stream and adds it to the
-     * TasksToDo queue for processing.
-     *
-     * @param socket the socket through which the task is received.
-     */
-    void receiveTask(Socket socket) {
-        try (ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream())) {
+    private void processIncomingTasks(Socket clientSocket) {
+        ObjectInputStream inputStream;
+
+        try {
+            inputStream = new ObjectInputStream(clientSocket.getInputStream());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        try {
             Object obj = inputStream.readObject();
             if (obj instanceof Task task) {
                 System.out.println("ASlave received task: " + task.taskID);
                 UncompletedTasks.put(task);  // Add the task to the UncompletedTasks queue
             }
-        } catch (IOException | ClassNotFoundException | InterruptedException e) {
-            System.err.println("Error reading task: " + e.getMessage());
+            clientSocket.close();  // Close the connection after receiving the task
+        } catch (ClassNotFoundException e) {
+            System.err.println("Received unknown object type: " + e.getMessage());
+        } catch (IOException | InterruptedException e) {
+            System.err.println("Connection lost while reading task: " + e.getMessage());
         }
     }
 }
+

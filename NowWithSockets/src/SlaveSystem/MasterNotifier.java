@@ -65,6 +65,8 @@ public class MasterNotifier implements Runnable {
      * @param task the completed task to be sent to the master server.
      */
     private void messageMaster(Task task) {
+        ObjectOutputStream outStream;
+
         if (slaveListener == null) {
             try {
                 slaveListener = new Socket("localhost", slaveListenerPortNum);
@@ -74,7 +76,13 @@ public class MasterNotifier implements Runnable {
             }
         }
 
-        try (ObjectOutputStream outStream = new ObjectOutputStream(slaveListener.getOutputStream())) {
+        try {
+            outStream = new ObjectOutputStream(slaveListener.getOutputStream());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        try {
             // Sends the completed task object to the master server
             outStream.writeObject(task);
             outStream.flush();

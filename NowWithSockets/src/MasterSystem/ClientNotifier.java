@@ -10,7 +10,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * The ClientsNotifier class is responsible for notifying clients
- * of the completion of their tasks in a multi-threaded server
+ * of the completion of their tasks in a multithreaded server
  * environment. It retrieves completed tasks from a blocking queue
  * and sends them back to the corresponding clients using their
  * associated sockets.
@@ -79,7 +79,10 @@ public class ClientNotifier implements Runnable {
      * @param completedTask the completed task object to be sent to the client.
      */
     void notifyClient(Socket client, Task completedTask) {
-        try (ObjectOutputStream outStream = new ObjectOutputStream(client.getOutputStream())) {
+        ObjectOutputStream outStream;
+
+        try {
+            outStream = new ObjectOutputStream(client.getOutputStream());
             outStream.writeObject(completedTask);
             outStream.flush();
             System.out.println("Sent task back to client: " + completedTask.clientID);

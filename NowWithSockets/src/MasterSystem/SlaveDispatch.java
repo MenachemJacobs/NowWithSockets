@@ -64,7 +64,7 @@ public class SlaveDispatch implements Runnable {
 
         while (running) {
             try {
-                if(!uncompletedTasks.isEmpty()) {
+                if (!uncompletedTasks.isEmpty()) {
                     // Wait for an unassigned task to become available
                     uncompletedTask = uncompletedTasks.take();
                     sendTaskToSlave(uncompletedTask);
@@ -124,18 +124,18 @@ public class SlaveDispatch implements Runnable {
 
             // Establish a socket connection to the selected slave server and send the task
             try {
-                Socket socket = SlaveSocketManager.getSlaveSocket(portNumber);
+                // TODO: Get SlaveSocketManager to work
+                Socket socket = new Socket("localhost", portNumber);
+                ObjectOutputStream ooStream;
 
-                try (ObjectOutputStream ooStream = new ObjectOutputStream(socket.getOutputStream())) {
-                    ooStream.writeObject(task);
-                    ooStream.flush();
-                    System.out.println("Sent task: " + task.taskID + " to slave server " + (portNumber == ASlavePort ? "Slave A" : "Slave B"));
-                    return;
-                } finally {
-                    SlaveSocketManager.releaseSlaveSocket(portNumber);
-                }
+                ooStream = new ObjectOutputStream(socket.getOutputStream());
+                ooStream.writeObject(task);
+                ooStream.flush();
+                System.out.println("Sent task: " + task.taskID + " to slave server " + (portNumber == ASlavePort ? "Slave A" : "Slave B"));
+                socket.close();
+                return;
 
-            } catch (IOException | InterruptedException e) {
+            } catch (IOException e) {
                 retries--;
                 System.err.println("Error sending task to slave server, retries left: " + retries);
                 if (retries == 0) System.err.println("Task failed after 3 retries: " + task.taskID);
