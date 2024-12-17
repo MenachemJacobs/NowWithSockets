@@ -11,15 +11,16 @@ import java.util.Scanner;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Client {
-    int idNumber;
-    private int taskCounter = 0;
     private static final AtomicInteger clientCounter = new AtomicInteger(0);
+
+    int myIdNumber = 0;
+    private int taskCounter = 0;
 
     private Socket masterSystemSocket;
     private ObjectOutputStream outTask;
 
     Client(int idNumber) {
-        this.idNumber = idNumber;
+        myIdNumber = idNumber;
     }
 
     public static void main(String[] args) {
@@ -70,12 +71,12 @@ public class Client {
             return;
         }
 
-        Task task = new Task(idNumber, ++taskCounter, taskType);
+        Task task = new Task(++taskCounter, myIdNumber, taskType);
 
         try {
             outTask.writeObject(task);
             outTask.flush(); // Ensure the task is sent immediately
-            System.out.println("Sent task of type: " + task.taskType + " from Client.Client ID: " + idNumber + ", task number: " + task.taskID);
+            System.out.println("Sent task of type: " + task.taskType + " from Client.Client ID: " + myIdNumber + ", task number: " + task.taskID);
         } catch (IOException e) {
             System.err.println("Failed to send task of type: " + taskType + " - " + e.getMessage());
         }

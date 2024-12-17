@@ -8,6 +8,7 @@ import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static Components.PortNumbers.*;
 import static java.lang.Math.min;
@@ -38,6 +39,7 @@ public class SlaveDispatch implements Runnable {
     static final int EFFICIENT_TIME = 2;
     static final int INEFFICIENT_TIME = 10;
     static final int TIME_THRESHOLD = 8;
+    private static final AtomicLong lastTimestamp = new AtomicLong(System.currentTimeMillis());
 
     private volatile Boolean running = true;
 
@@ -89,29 +91,7 @@ public class SlaveDispatch implements Runnable {
      * @param task the task to be sent to the slave server for processing.
      */
     static void sendTaskToSlave(Task task) {
-        int portNumber;
-
-        synchronized (SlaveDispatch.class) {
-            // TODO implement count down
-            // Determine which slave to send the task to based on task type and current workload
-            if (task.taskType == TaskType.A) {
-                if (ASlaveTime.get() > BSlaveTime.get() + TIME_THRESHOLD) {
-                    portNumber = BSlavePort;
-                    BSlaveTime.addAndGet(INEFFICIENT_TIME); // Increase workload for Slave B
-                } else {
-                    portNumber = ASlavePort;
-                    ASlaveTime.addAndGet(EFFICIENT_TIME); // Increase workload for Slave A
-                }
-            } else {
-                if (BSlaveTime.get() > ASlaveTime.get() + TIME_THRESHOLD) {
-                    portNumber = ASlavePort;
-                    ASlaveTime.addAndGet(INEFFICIENT_TIME); // Increase workload for Slave A
-                } else {
-                    portNumber = BSlavePort;
-                    BSlaveTime.addAndGet(EFFICIENT_TIME); // Increase workload for Slave B
-                }
-            }
-        }
+        int portNumber = chooseSlave(task.taskType);
 
         // Adjust the processing times of the slaves after sending the task
         int minTime = min(ASlaveTime.get(), BSlaveTime.get());
@@ -141,6 +121,38 @@ public class SlaveDispatch implements Runnable {
                 if (retries == 0) System.err.println("Task failed after 3 retries: " + task.taskID);
             }
         }
+    }
+
+    private static synchronized int chooseSlave(TaskType type) {
+        long currentTime = System.currentTimeMillis();
+        long elapsedTime = currentTime - lastTimestamp.getAndSet(currentTime);
+
+        int portNumber;
+
+        if(ASlaveTime.get() != 0) ASlaveTime.set((int) (ASlaveTime.get() - elapsedTime));
+        else if(BSlaveTime.get() != 0) BSlaveTime.set((int) (BSlaveTime.get() - elapsedTime));
+
+        // TODO implement count down
+        // Determine which slave to send the task to based on task type and current workload
+        if (type == TaskType.A) {
+            if (ASlaveTime.get() > BSlaveTime.get() + TIME_THRESHOLD) {
+                portNumber = BSlavePort;
+                BSlaveTime.addAndGet(INEFFICIENT_TIME); // Increase workload for Slave B
+            } else {
+                portNumber = ASlavePort;
+                ASlaveTime.addAndGet(EFFICIENT_TIME); // Increase workload for Slave A
+            }
+        } else {
+            if (BSlaveTime.get() > ASlaveTime.get() + TIME_THRESHOLD) {
+                portNumber = ASlavePort;
+                ASlaveTime.addAndGet(INEFFICIENT_TIME); // Increase workload for Slave A
+            } else {
+                portNumber = BSlavePort;
+                BSlaveTime.addAndGet(EFFICIENT_TIME); // Increase workload for Slave B
+            }
+        }
+
+        return portNumber;
     }
 
     public void shutdown() {
