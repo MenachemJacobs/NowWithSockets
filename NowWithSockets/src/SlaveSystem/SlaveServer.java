@@ -81,11 +81,17 @@ public class SlaveServer implements Runnable {
             serverSocket = new ServerSocket(portNumber);
             System.out.println("System listening on port: " + portNumber);
 
+            // Accept incoming client connection
+            Socket clientSocket = serverSocket.accept();
+            System.out.println("Accepted connection from " + clientSocket.getInetAddress());
+
             while (isRunning) {
                 try {
-                    // Accept incoming client connection
-                    Socket clientSocket = serverSocket.accept();
-                    System.out.println("Accepted connection from " + clientSocket.getInetAddress());
+                    if(clientSocket.isClosed()) {
+                        System.out.println("Lost connection to client. Trying to reconnect...");
+                        clientSocket = serverSocket.accept();
+                        System.out.println("Accepted connection from " + clientSocket.getInetAddress());
+                    }
 
                     // Process tasks from this connection
                     processIncomingTasks(clientSocket);

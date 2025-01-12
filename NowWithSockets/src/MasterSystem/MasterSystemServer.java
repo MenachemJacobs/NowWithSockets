@@ -52,10 +52,6 @@ public class MasterSystemServer {
      * </p>
      */
     public MasterSystemServer() {
-        // TODO: Get SocketManagerWorking
-        //SlaveSocketManager.addSlaveSocket(PortNumbers.ASlavePort);
-        //SlaveSocketManager.addSlaveSocket(PortNumbers.BSlavePort);
-
         slaveExecutor.execute(new SlaveListener(TaskType.A, TaskNotifierMap, isRunning));
         slaveExecutor.execute(new SlaveListener(TaskType.B, TaskNotifierMap, isRunning));
 

@@ -110,7 +110,6 @@ public class SlaveDispatch implements Runnable {
 
             // Establish a socket connection to the selected slave server and send the task
             try {
-                // TODO: Get SlaveSocketManager to work
                 Socket socket = new Socket("localhost", portNumber);
                 ObjectOutputStream ooStream;
 
